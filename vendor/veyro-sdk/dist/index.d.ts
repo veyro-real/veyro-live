@@ -58,13 +58,13 @@ export declare class Rpc {
     send(bytes: Uint8Array): Promise<string>;
     confirm(signature: string, timeout?: number): Promise<any>;
 }
+export declare const MAX_RECIPIENTS = 8, MAX_PROGRAMS = 4;
 export type Policy = {
+    version: 2;
     owner: string;
     agent: string;
     executor: string;
-    recipient: string;
     pool: string;
-    allowedProgram: string;
     maxAmount: bigint;
     totalLimit: bigint;
     spent: bigint;
@@ -72,20 +72,30 @@ export type Policy = {
     nonce: bigint;
     minRate: bigint;
     active: boolean;
+    bump: number;
+    allowedRecipients: string[];
+    allowedPrograms: string[];
 };
 export declare function decodePolicy(data: Uint8Array): Policy;
+export type Evaluation = {
+    decision: 'ALLOW' | 'DENY';
+    reason: string;
+    simulationSlot: number | null;
+};
+/** Evaluate signed bytes against current chain state. ALLOW is provisional; this never broadcasts. */
+export declare function evaluateTransaction(rpc: Rpc, bytes: Uint8Array): Promise<Evaluation>;
 export declare function createPoolIx(admin: string, quoteMint: string, outputMint: string, rate: bigint, program?: string): Instruction;
 export declare function createPolicyIx(p: {
     owner: string;
     agent: string;
     executor: string;
-    recipient: string;
+    allowedRecipients: string[];
     pool: string;
     maxAmount: bigint;
     totalLimit: bigint;
     expiresAt: bigint;
     minRate: bigint;
-    allowedProgram?: string;
+    allowedPrograms?: string[];
 }, program?: string): Instruction;
 export type SwapAccounts = {
     agent: string;

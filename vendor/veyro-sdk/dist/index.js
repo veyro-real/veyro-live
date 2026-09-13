@@ -12,8 +12,10 @@ export function address(s) { const a = bs58.decode(s); if (a.length !== 32)
     throw Error('INVALID_ADDRESS'); return a; }
 export function u64(value) { if (value < 0n || value > 18446744073709551615n)
     throw Error('INVALID_U64'); const a = new Uint8Array(8); new DataView(a.buffer).setBigUint64(0, value, true); return a; }
-export function i64(value) { const a = new Uint8Array(8); new DataView(a.buffer).setBigInt64(0, value, true); return a; }
-export function u32(value) { const a = new Uint8Array(4); new DataView(a.buffer).setUint32(0, value, true); return a; }
+export function i64(value) { if (value < -(2n ** 63n) || value > 2n ** 63n - 1n)
+    throw Error('INVALID_I64'); const a = new Uint8Array(8); new DataView(a.buffer).setBigInt64(0, value, true); return a; }
+export function u32(value) { if (!Number.isInteger(value) || value < 0 || value > 0xffffffff)
+    throw Error('INVALID_U32'); const a = new Uint8Array(4); new DataView(a.buffer).setUint32(0, value, true); return a; }
 export function keyFromSecret(secret) { if (secret.length !== 32 && secret.length !== 64)
     throw Error('INVALID_SECRET'); const seed = secret.slice(0, 32); const publicKey = bs58.encode(ed25519.getPublicKey(seed)); if (secret.length === 64 && publicKey !== bs58.encode(secret.slice(32)))
     throw Error('KEY_MISMATCH'); return { publicKey, secret: seed }; }
@@ -83,14 +85,14 @@ export class Rpc {
     async call(method, params = []) { const res = await fetch(this.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }), signal: AbortSignal.timeout(20000) }); if (!res.ok)
         throw Error('RPC_HTTP_' + res.status); const json = await res.json(); if (json.error)
         throw Error(JSON.stringify(json.error)); return json.result; }
-    async assertTestCluster() { const hash = await this.call('getGenesisHash'); if (hash === '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp')
-        throw Error('MAINNET_DISABLED'); const host = new URL(this.endpoint).hostname; if (hash !== '4uhcVJyU9pJkvQyS88uRDiswHXSCkY3zQawwpjk2NsNY' && !['127.0.0.1', 'localhost', '::1'].includes(host))
+    async assertTestCluster() { const hash = await this.call('getGenesisHash'); if (hash === '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d')
+        throw Error('MAINNET_DISABLED'); const host = new URL(this.endpoint).hostname; if (hash !== '4uhcVJyU9pJkvQyS88uRDiswHXSCkY3zQawwpjk2NsNY' && !['127.0.0.1', 'localhost', '[::1]'].includes(host))
         throw Error('EXPECTED_SOLANA_TESTNET'); return hash; }
     async account(key) { const value = (await this.call('getAccountInfo', [key, { encoding: 'base64', commitment: 'confirmed' }])).value; if (!value)
         return null; return { owner: value.owner, data: Uint8Array.from(Buffer.from(value.data[0], 'base64')), lamports: value.lamports }; }
     async transaction(payer, keys, ix) { await this.assertTestCluster(); const { blockhash, lastValidBlockHeight } = (await this.call('getLatestBlockhash', [{ commitment: 'confirmed' }])).value; return { ...signTransaction(compile(payer.publicKey, blockhash, ix), [payer, ...keys]), lastValidBlockHeight }; }
     async simulate(bytes) { return this.call('simulateTransaction', [Buffer.from(bytes).toString('base64'), { encoding: 'base64', sigVerify: true, commitment: 'confirmed' }]); }
-    async send(bytes) { return this.call('sendTransaction', [Buffer.from(bytes).toString('base64'), { encoding: 'base64', skipPreflight: false, preflightCommitment: 'confirmed' }]); }
+    async send(bytes) { await this.assertTestCluster(); return this.call('sendTransaction', [Buffer.from(bytes).toString('base64'), { encoding: 'base64', skipPreflight: false, preflightCommitment: 'confirmed' }]); }
     async confirm(signature, timeout = 60000) { const until = Date.now() + timeout; while (Date.now() < until) {
         const s = (await this.call('getSignatureStatuses', [[signature], { searchTransactionHistory: true }])).value[0];
         if (s?.err)
@@ -100,10 +102,31 @@ export class Rpc {
         await new Promise(r => setTimeout(r, 1200));
     } throw Error('CONFIRMATION_UNKNOWN'); }
 }
-export function decodePolicy(data) { const expected = sha256(utf8('account:Policy')).slice(0, 8); if (data.length < 250 || !expected.every((v, i) => v === data[i]))
-    throw Error('INVALID_POLICY_ACCOUNT'); let at = 8; const key = () => { const k = bs58.encode(data.slice(at, at + 32)); at += 32; return k; }; const num = (signed = false) => { const view = new DataView(data.buffer, data.byteOffset + at, 8); at += 8; return signed ? view.getBigInt64(0, true) : view.getBigUint64(0, true); }; return { owner: key(), agent: key(), executor: key(), recipient: key(), pool: key(), allowedProgram: key(), maxAmount: num(), totalLimit: num(), spent: num(), expiresAt: num(true), nonce: num(), minRate: num(), active: !!data[at] }; }
+export const MAX_RECIPIENTS = 8, MAX_PROGRAMS = 4;
+function checkedAddresses(values, max) { if (!Array.isArray(values) || values.length > max || new Set(values).size !== values.length)
+    throw Error('INVALID_POLICY_ALLOWLIST'); values.forEach(address); return values; }
+const addressVector = (values, max) => concat(u32(checkedAddresses(values, max).length), ...values.map(address));
+export function decodePolicy(data) { const expected = sha256(utf8('account:PolicyV2')).slice(0, 8); if (data.length < 195 || !expected.every((v, i) => v === data[i]) || data[8] !== 2)
+    throw Error('INVALID_POLICY_ACCOUNT'); let at = 9; const need = (n) => { if (at + n > data.length)
+    throw Error('INVALID_POLICY_ACCOUNT'); }; const key = () => { need(32); const k = bs58.encode(data.slice(at, at + 32)); at += 32; return k; }; const num = (signed = false) => { need(8); const v = new DataView(data.buffer, data.byteOffset + at, 8); at += 8; return signed ? v.getBigInt64(0, true) : v.getBigUint64(0, true); }; const owner = key(), agent = key(), executor = key(), pool = key(), maxAmount = num(), totalLimit = num(), spent = num(), expiresAt = num(true), nonce = num(), minRate = num(); need(2); if (data[at] > 1)
+    throw Error('INVALID_POLICY_ACCOUNT'); const active = data[at++] === 1, bump = data[at++]; const vector = (max) => { need(4); const count = new DataView(data.buffer, data.byteOffset + at, 4).getUint32(0, true); at += 4; if (count > max)
+    throw Error('INVALID_POLICY_ACCOUNT'); need(count * 32); const values = Array.from({ length: count }, key); if (new Set(values).size !== count)
+    throw Error('INVALID_POLICY_ACCOUNT'); return values; }; return { version: 2, owner, agent, executor, pool, maxAmount, totalLimit, spent, expiresAt, nonce, minRate, active, bump, allowedRecipients: vector(MAX_RECIPIENTS), allowedPrograms: vector(MAX_PROGRAMS) }; }
+/** Evaluate signed bytes against current chain state. ALLOW is provisional; this never broadcasts. */
+export async function evaluateTransaction(rpc, bytes) { try {
+    await rpc.assertTestCluster();
+    const simulation = await rpc.simulate(bytes);
+    if (!simulation?.value || !('err' in simulation.value) || !Number.isSafeInteger(simulation.context?.slot))
+        return { decision: 'DENY', reason: 'SIMULATION_UNAVAILABLE', simulationSlot: null };
+    const denied = simulation.value.err !== null;
+    return { decision: denied ? 'DENY' : 'ALLOW', reason: errorReason(simulation.value.logs, simulation.value.err), simulationSlot: simulation.context.slot };
+}
+catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    return { decision: 'DENY', reason: ['MAINNET_DISABLED', 'EXPECTED_SOLANA_TESTNET'].includes(message) ? message : 'SIMULATION_UNAVAILABLE', simulationSlot: null };
+} }
 export function createPoolIx(admin, quoteMint, outputMint, rate, program = PROGRAM_ID) { return { program, accounts: [meta(admin, true, true), meta(poolAddress(admin, outputMint, program), false, true), meta(SYSTEM)], data: concat(discriminator('create_pool'), address(quoteMint), address(outputMint), u64(rate)) }; }
-export function createPolicyIx(p, program = PROGRAM_ID) { return { program, accounts: [meta(p.owner, true, true), meta(policyAddress(p.owner, p.agent, program), false, true), meta(p.pool), meta(SYSTEM)], data: concat(discriminator('create_policy'), address(p.agent), address(p.executor), address(p.recipient), u64(p.maxAmount), u64(p.totalLimit), i64(p.expiresAt), address(p.allowedProgram ?? TOKEN), u64(p.minRate)) }; }
+export function createPolicyIx(p, program = PROGRAM_ID) { return { program, accounts: [meta(p.owner, true, true), meta(policyAddress(p.owner, p.agent, program), false, true), meta(p.pool), meta(SYSTEM)], data: concat(discriminator('create_policy'), address(p.agent), address(p.executor), addressVector(p.allowedRecipients, MAX_RECIPIENTS), u64(p.maxAmount), u64(p.totalLimit), i64(p.expiresAt), addressVector(p.allowedPrograms ?? [TOKEN], MAX_PROGRAMS), u64(p.minRate)) }; }
 export function swapIx(a, amount, minOutput, nonce, program = PROGRAM_ID) { return { program, accounts: [meta(a.agent, true), meta(a.executor, true), meta(a.policy, false, true), meta(a.pool), meta(a.vault, false, true), meta(a.poolQuote, false, true), meta(a.poolOutput, false, true), meta(a.recipient, false, true), meta(TOKEN), meta(INSTRUCTIONS)], data: concat(discriminator('execute_swap'), u64(amount), u64(minOutput), u64(nonce)) }; }
 export const revokeIx = (owner, policy, program = PROGRAM_ID) => ({ program, accounts: [meta(owner, true), meta(policy, false, true)], data: discriminator('revoke') });
 export function recoverIx(owner, policy, pool, vault, destination, amount, program = PROGRAM_ID) { return { program, accounts: [meta(owner, true), meta(policy), meta(pool), meta(vault, false, true), meta(destination, false, true), meta(TOKEN)], data: concat(discriminator('recover'), u64(amount)) }; }

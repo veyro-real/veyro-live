@@ -22,8 +22,10 @@ export declare function previewPolicy(p: {
     maxAmount: string;
     totalLimit: string;
     spent: string;
-    recipient: string;
+    allowedRecipients: string[];
+    allowedPrograms: string[];
 }, r: {
     amount: string;
     recipient: string;
-}, now?: number): "REVOKED" | "EXPIRED" | "RECIPIENT_NOT_ALLOWED" | "INVALID_AMOUNT" | "MAX_TRANSACTION_EXCEEDED" | "CUMULATIVE_LIMIT_EXCEEDED" | "POLICY_SATISFIED";
+    program: string;
+}, now?: number): "REVOKED" | "EXPIRED" | "PROGRAM_NOT_ALLOWED" | "RECIPIENT_NOT_ALLOWED" | "INVALID_AMOUNT" | "MAX_TRANSACTION_EXCEEDED" | "CUMULATIVE_LIMIT_EXCEEDED" | "POLICY_SATISFIED";

@@ -7,13 +7,17 @@ export function pickCandidate(candidates) { const viable = candidates.filter(c =
     throw Error('NO_VERIFIED_SOLANA_CANDIDATE'); return [...viable].sort((a, b) => b.score - a.score || a.symbol.localeCompare(b.symbol))[0]; }
 export function previewPolicy(p, r, now = Math.floor(Date.now() / 1000)) { if (!p.active)
     return 'REVOKED'; if (now >= p.expiresAt)
-    return 'EXPIRED'; if (p.recipient !== r.recipient)
-    return 'RECIPIENT_NOT_ALLOWED'; let n; try {
+    return 'EXPIRED'; if (!p.allowedPrograms.includes(r.program))
+    return 'PROGRAM_NOT_ALLOWED'; if (!p.allowedRecipients.includes(r.recipient))
+    return 'RECIPIENT_NOT_ALLOWED'; let n, max, total, spent; try {
     n = BigInt(r.amount);
+    max = BigInt(p.maxAmount);
+    total = BigInt(p.totalLimit);
+    spent = BigInt(p.spent);
 }
 catch {
     return 'INVALID_AMOUNT';
 } if (n <= 0n)
-    return 'INVALID_AMOUNT'; if (n > BigInt(p.maxAmount))
-    return 'MAX_TRANSACTION_EXCEEDED'; if (n + BigInt(p.spent) > BigInt(p.totalLimit))
+    return 'INVALID_AMOUNT'; if (n > max)
+    return 'MAX_TRANSACTION_EXCEEDED'; if (n + spent > total)
     return 'CUMULATIVE_LIMIT_EXCEEDED'; return 'POLICY_SATISFIED'; }
