@@ -1,0 +1,14 @@
+import { DatabaseSync } from 'node:sqlite';
+import { mkdirSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { randomUUID } from 'node:crypto';
+let db:DatabaseSync|undefined;
+export function database(){if(!db){const file=resolve(process.env.VEYRO_DATA_DIR||'data','audit.sqlite');mkdirSync(dirname(file),{recursive:true,mode:0o700});db=new DatabaseSync(file);db.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA busy_timeout=5000; CREATE TABLE IF NOT EXISTS state (id TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE IF NOT EXISTS attempts (id TEXT PRIMARY KEY, session TEXT NOT NULL, payload TEXT NOT NULL); CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY, attempt TEXT NOT NULL, at TEXT NOT NULL, payload TEXT NOT NULL); CREATE INDEX IF NOT EXISTS attempts_session ON attempts(session);');}return db;}
+export function getState<T>(id:string):T|null{const row=database().prepare('SELECT value FROM state WHERE id=?').get(id) as {value:string}|undefined;return row?JSON.parse(row.value):null;}
+export function saveState(id:string,value:unknown){database().prepare('INSERT INTO state(id,value) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET value=excluded.value').run(id,JSON.stringify(value));}
+export type Attempt={id:string;at:string;kind:string;request:unknown;agent:string|null;policy:unknown;decision:'ALLOW'|'DENY'|null;reason:string;status:string;candidateSignature?:string;executedSignature?:string;wire?:string;lastValidBlockHeight?:number;[key:string]:unknown};
+export function beginAttempt(session:string,kind:string,request:unknown){const a:Attempt={id:randomUUID(),at:new Date().toISOString(),kind,request,agent:null,policy:null,decision:null,reason:'RECEIVED',status:'RECEIVED'};recordAttempt(session,a);return a;}
+export function recordAttempt(session:string,a:Attempt){const db=database();db.exec('BEGIN IMMEDIATE');try{const raw=JSON.stringify(a);db.prepare('INSERT INTO attempts(id,session,payload) VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload').run(a.id,session,raw);db.prepare('INSERT INTO events(attempt,at,payload) VALUES (?,?,?)').run(a.id,new Date().toISOString(),raw);db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e;}}
+export function attempts(session:string,privateFields=false):Attempt[]{const rows=database().prepare('SELECT payload FROM attempts WHERE session=? ORDER BY rowid DESC LIMIT 100').all(session) as {payload:string}[];return rows.map(r=>{const a=JSON.parse(r.payload);if(!privateFields){delete a.wire;delete a.pendingRuntime;}return a;});}
+export function claimRequest(session:string,key:string):string|null {const id='request:'+session+':'+key;const existing=getState<string>(id);if(existing)return existing;saveState(id,'IN_PROGRESS');return null;}
+export function finishRequest(session:string,key:string,attempt:string){saveState('request:'+session+':'+key,attempt);}

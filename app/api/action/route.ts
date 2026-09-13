@@ -1,0 +1,5 @@
+import {authorize,readBody,validateOrigin} from '../../../lib/auth';
+import {act} from '../../../lib/engine';
+import {getState,saveState,beginAttempt,recordAttempt} from '../../../lib/store';
+export const runtime='nodejs';export const dynamic='force-dynamic';
+export async function POST(req:Request){let session:string|undefined;try{validateOrigin(req);const auth=authorize(req);session=auth.session;const now=Date.now();const last=getState<number>('rate:'+session)||0;if(now-last<800)throw Error('RATE_LIMITED');saveState('rate:'+session,now);const body=await readBody(req);return Response.json(await act(session,body,auth.operator),{headers:{'Cache-Control':'no-store'}});}catch(e){const error=(e as Error).message;if(session && /JSON|REQUEST_TOO_LARGE|EMPTY_REQUEST/.test(error)){const a=beginAttempt(session,'invalid-request',{error});a.decision='DENY';a.reason='MALFORMED_REQUEST';a.status='DENIED';recordAttempt(session,a);}return Response.json({error},{status:error==='UNAUTHORIZED'?401:error==='RATE_LIMITED'?429:400});}}
