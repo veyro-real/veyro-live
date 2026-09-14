@@ -6,6 +6,7 @@ type Policy={active:boolean;maxAmount:string;totalLimit:string;spent:string;expi
 type Candidate={name:string;symbol:string;mint:string|null;score:number;sourceUrl:string|null;reason:string};
 type Attempt={id:string;at:string;kind:string;agent:string|null;policy?:{address?:string};decision:'ALLOW'|'DENY'|null;reason:string;status:string;executedSignature?:string;candidateSignature?:string;selected?:Candidate;research?:{source:string;candidates:Candidate[]};request?:Record<string,unknown>};
 type State={mode:string;network:string;xConfigured:boolean;configured:boolean;cloudAudit?:boolean;policy:Policy|null;attempts:Attempt[];error?:string};
+type PhantomProvider={publicKey?:{toString():string};connect():Promise<{publicKey:{toString():string}}>};
 
 const PROGRAM_ID='2Z7xH99Z4YvG4U2Ew5PUZtVh8FE1VRhQ1Mo9dFvRvS3Q';
 const initial:State={mode:'rehearsal',network:'Connecting',xConfigured:false,configured:false,policy:null,attempts:[]};
@@ -29,6 +30,8 @@ export default function Live(){
  const [session,setSession]=useState('');
  const [requestId,setRequestId]=useState('');
  const [showAccess,setShowAccess]=useState(false);
+ const [wallet,setWallet]=useState('');
+ const [walletBusy,setWalletBusy]=useState(false);
 
  useEffect(()=>{let id=localStorage.getItem('veyro-session');if(!id){id=crypto.randomUUID();localStorage.setItem('veyro-session',id);}setSession(id);setRequestId(crypto.randomUUID());},[]);
  useEffect(()=>{if(session)void refresh();},[session]);
@@ -47,6 +50,16 @@ export default function Live(){
    if(kind==='run')setRequestId(crypto.randomUUID());
   }catch(error){setMessage((error as Error).message);}finally{setBusy(false);}
  }
+ async function connectWallet(){
+  const provider=((window as typeof window&{phantom?:{solana?:PhantomProvider};solana?:PhantomProvider}).phantom?.solana||(window as typeof window&{solana?:PhantomProvider}).solana);
+  if(!provider){
+   const page=encodeURIComponent(window.location.href),ref=encodeURIComponent(window.location.origin);
+   window.location.href=`https://phantom.app/ul/browse/${page}?ref=${ref}`;
+   return;
+  }
+  setWalletBusy(true);setMessage('');
+  try{const connected=await provider.connect();setWallet(connected.publicKey.toString());setMessage('Wallet connected');}catch(error){setMessage((error as Error).message||'Wallet connection cancelled');}finally{setWalletBusy(false);}
+ }
 
  const policy=data.policy;
  const remaining=policy?BigInt(policy.totalLimit)-BigInt(policy.spent):0n;
@@ -60,7 +73,7 @@ export default function Live(){
    <div className="header-links">
     <span className="network"><i/>{data.network}</span>
     <a href="https://github.com/veyro-real/veyro-protocol" target="_blank" rel="noreferrer">Protocol ↗</a>
-    <button className="ghost" onClick={()=>setShowAccess(true)}>Connect</button>
+    <button className="wallet-button" disabled={walletBusy} onClick={()=>void connectWallet()}>{wallet?short(wallet):walletBusy?'Connecting…':'Connect wallet'}</button>
    </div>
   </header>
 
@@ -83,7 +96,7 @@ export default function Live(){
       <label><span>Expires in</span><div className="money"><input value={hours} onChange={event=>setHours(event.target.value)} type="number" min="0.05" max="24" step="0.05"/><small>HOURS</small></div></label>
      </div>
      <div className="action-row"><button className="primary" disabled={busy} onClick={()=>void action('configure')}>{busy?'Saving…':'Save limits'}</button>{policy&&<span className="summary">${dollars(remaining.toString())} remaining</span>}</div>
-     <details><summary>Advanced policy controls</summary><div className="advanced-grid"><label>Allowed recipient wallets<input value={allowedRecipients} onChange={event=>setAllowedRecipients(event.target.value)} placeholder={policy?.allowedRecipients.join(', ')||'Safe demo default'}/></label><label>Allowed Solana programs<input value={allowedPrograms} onChange={event=>setAllowedPrograms(event.target.value)} placeholder={policy?.allowedPrograms.join(', ')||'SPL Token program'}/></label></div><div className="detail-actions"><button className="danger" disabled={busy||!policy?.active} onClick={()=>void action('revoke')}>Revoke agent</button><button className="secondary" disabled={busy||data.mode!=='testnet'} onClick={()=>void action('faucet')}>Request test SOL</button></div></details>
+     <details><summary>Advanced policy controls</summary><div className="advanced-grid"><label>Allowed recipient wallets<input value={allowedRecipients} onChange={event=>setAllowedRecipients(event.target.value)} placeholder={policy?.allowedRecipients.join(', ')||'Safe demo default'}/></label><label>Allowed Solana programs<input value={allowedPrograms} onChange={event=>setAllowedPrograms(event.target.value)} placeholder={policy?.allowedPrograms.join(', ')||'SPL Token program'}/></label></div><div className="detail-actions"><button className="danger" disabled={busy||!policy?.active} onClick={()=>void action('revoke')}>Revoke agent</button><button className="secondary" onClick={()=>setShowAccess(true)}>Operator access</button><button className="secondary" disabled={busy||data.mode!=='testnet'} onClick={()=>void action('faucet')}>Request test SOL</button></div></details>
     </div>
    </section>
 
