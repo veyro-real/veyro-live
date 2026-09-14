@@ -1,16 +1,19 @@
 # Veyro Live
 
-The phone-friendly Veyro agent workspace. Next.js with a monochrome, Vercel-inspired interface; SQLite audit records; read-only crypto-X research; protocol execution and a small MCP endpoint.
+The phone-friendly Veyro agent workspace. Next.js with a monochrome, Vercel-inspired interface; durable Supabase audit records; read-only crypto-X research; protocol execution and a small MCP endpoint.
+
+## Supabase
+
+Run `supabase/migrations/0001_veyro_store.sql` in the project SQL editor, then set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` as server-only Railway variables. Policy state, idempotency claims, attempts and append-only attempt events use Supabase. The deployed app fails closed when Supabase is missing or unavailable. The anon key is not used and browser clients have no table access. Automated tests explicitly use a process-local memory store.
 
 ## Deploy on Railway now
 
 1. Create a service from **veyro-real/veyro-live**. Keep the root directory unchanged; Railway detects the Dockerfile.
-2. Add a persistent volume mounted at **`/app/data`**. Set `VEYRO_DATA_DIR=/app/data`. Keep **one replica**; the execution queue and SQLite design are single-instance.
-3. Set `VEYRO_MODE=rehearsal`. Generate a public domain and set `VEYRO_APP_ORIGIN` to that exact HTTPS origin, with no trailing slash.
-4. Deploy. The full rehearsal flow works without X credentials or blockchain keys. It explicitly labels simulated balances and produces no transaction signatures.
-5. Point the landing page's `VEYRO_LIVE_URL` at this service and rebuild the landing page.
+2. Set the required Supabase variables and `VEYRO_MODE=rehearsal`. Generate a public domain and set `VEYRO_APP_ORIGIN` to that exact HTTPS origin, with no trailing slash.
+3. Deploy. The full rehearsal flow works without X credentials or blockchain keys. It explicitly labels simulated balances and produces no transaction signatures.
+4. Point the landing page's `VEYRO_LIVE_URL` at this service and rebuild the landing page.
 
-The container accepts Railway's `PORT`. A small entrypoint prepares the mounted data directory and runs the app as the unprivileged `node` user. It does not copy secrets from the repository into the image.
+The container accepts Railway's `PORT` and runs the app as the unprivileged `node` user. It does not copy secrets from the repository into the image.
 
 ## Enable real X research
 
@@ -63,4 +66,4 @@ npm run dev
 
 `vendor/` contains versioned build output from this project's own protocol packages so Railway can build this repository without unpublished packages or GitHub credentials. Update these copies together when protocol interfaces change.
 
-SQLite lifecycle tests cover the admitted rehearsal flow, replay prevention, denial reasons, secret redaction and privilege separation. They do not replace a local-validator integration test or on-chain review. Public UI pages reveal configuration status only until a testnet operator/agent authenticates.
+Lifecycle tests use an explicit in-memory store and cover the admitted rehearsal flow, replay prevention, denial reasons, secret redaction and privilege separation. They do not replace a local-validator integration test or on-chain review. Public UI pages reveal configuration status only until a testnet operator/agent authenticates.
