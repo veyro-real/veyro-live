@@ -1,30 +1,130 @@
 'use client';
+
 import {useEffect,useState,type FormEvent} from 'react';
+
 type Policy={active:boolean;maxAmount:string;totalLimit:string;spent:string;expiresAt:number;address:string;agent:string;allowedRecipients:string[];allowedPrograms:string[]};
-type Attempt={id:string;at:string;kind:string;agent:string|null;policy?:{address?:string};decision:string|null;reason:string;status:string;executedSignature?:string;candidateSignature?:string;selected?:{name:string;symbol:string;mint:string|null};research?:{source:string;candidates:{name:string;symbol:string;mint:string|null;score:number;sourceUrl:string|null;reason:string}[]};request?:Record<string,unknown>};
-type State={mode:string;network:string;xConfigured:boolean;configured:boolean;policy:Policy|null;attempts:Attempt[];error?:string};
-const dollars=(n:string)=>new Intl.NumberFormat('en-US',{maximumFractionDigits:2}).format(Number(BigInt(n||'0'))/1e6);
-const short=(s:string)=>s.length>20?s.slice(0,6)+'…'+s.slice(-5):s;
+type Candidate={name:string;symbol:string;mint:string|null;score:number;sourceUrl:string|null;reason:string};
+type Attempt={id:string;at:string;kind:string;agent:string|null;policy?:{address?:string};decision:'ALLOW'|'DENY'|null;reason:string;status:string;executedSignature?:string;candidateSignature?:string;selected?:Candidate;research?:{source:string;candidates:Candidate[]};request?:Record<string,unknown>};
+type State={mode:string;network:string;xConfigured:boolean;configured:boolean;cloudAudit?:boolean;policy:Policy|null;attempts:Attempt[];error?:string};
+
+const PROGRAM_ID='2Z7xH99Z4YvG4U2Ew5PUZtVh8FE1VRhQ1Mo9dFvRvS3Q';
 const initial:State={mode:'rehearsal',network:'Connecting',xConfigured:false,configured:false,policy:null,attempts:[]};
-export default function Live(){const [data,setData]=useState<State>(initial),[tab,setTab]=useState('Overview'),[intent,setIntent]=useState('Find the dumbest meme coin. Here’s $100. Make me money.'),[budget,setBudget]=useState('100'),[total,setTotal]=useState('150'),[hours,setHours]=useState('1'),[allowedRecipients,setAllowedRecipients]=useState(''),[allowedPrograms,setAllowedPrograms]=useState(''),[liveResearch,setLiveResearch]=useState(false),[scenario,setScenario]=useState('approved'),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[token,setToken]=useState(''),[session,setSession]=useState(''),[showSettings,setShowSettings]=useState(false),[requestId,setRequestId]=useState(''),[dark,setDark]=useState(false);
-useEffect(()=>{let id=localStorage.getItem('veyro-session');if(!id){id=crypto.randomUUID();localStorage.setItem('veyro-session',id);}setSession(id);setRequestId(crypto.randomUUID());},[]);
-useEffect(()=>{if(session)void refresh();},[session]);
-useEffect(()=>{document.documentElement.dataset.theme=dark?'dark':'light';},[dark]);
-function headers(){return {'Content-Type':'application/json','x-veyro-session':session,...(token?{Authorization:'Bearer '+token}:{})};}
-async function refresh(){try{const r=await fetch('/api/state',{headers:headers(),cache:'no-store'});const v=await r.json();setData(v);if(v.error)setMessage(v.error);}catch{setMessage('Could not reach Veyro. Check your connection and try Refresh.');}}
-async function action(kind:string){if(busy)return;setBusy(true);setMessage('');try{const id=kind==='run'?requestId:crypto.randomUUID();const r=await fetch('/api/action',{method:'POST',headers:headers(),body:JSON.stringify({action:kind,requestId:id,intent,budget,total,hours,allowedRecipients,allowedPrograms,liveResearch,scenario})});const v=await r.json();if(v.error)throw Error(v.error);setData(v);setMessage(v.attempt?.reason||'Updated');if(kind==='run')setRequestId(crypto.randomUUID());}catch(e){setMessage((e as Error).message);}finally{setBusy(false);}}
-const p=data.policy,remaining=p?BigInt(p.totalLimit)-BigInt(p.spent):0n,latest=data.attempts.find(a=>a.kind==='run'||a.kind==='research');
-return <><header className="topbar"><a className="logo" href="/" aria-label="Veyro home"><svg viewBox="0 0 28 28"><path d="M3 5h7l5 15 5-15h6L17 26h-6Z"/></svg><b>veyro</b></a><span className="slash">/</span><span className="team">Your workspace</span><span className="tag">Test deployment</span><div className="topright"><a href="https://github.com/veyro-real/veyro-protocol">Documentation ↗</a><button className="icon-button" onClick={()=>setDark(!dark)} aria-label="Toggle color theme">{dark?'☀':'◐'}</button><button className="avatar" onClick={()=>setShowSettings(!showSettings)} aria-label="Open access settings">V</button></div></header>
-<nav className="tabs" aria-label="Workspace navigation">{['Overview','Policy','Activity','Connect'].map(t=><button key={t} onClick={()=>setTab(t)} aria-current={tab===t?'page':undefined} className={tab===t?'selected':''}>{t}</button>)}</nav>
-<main><div className="titlebar"><div><h1>{tab==='Overview'?'Agent workspace':tab==='Policy'?'Spending policy':tab==='Activity'?'Activity log':'Connect your agent'}</h1><p>{tab==='Overview'?'Tell it what you want. Set the limits. Let it work.':tab==='Policy'?'You define the boundary. The protocol enforces it.':tab==='Activity'?'Every admitted attempt. Every decision. Every receipt.':'The same actions, directly from your chat client.'}</p></div><div className="title-actions"><span className="network"><i/>{data.network}</span><button className="secondary" onClick={refresh} disabled={busy}>↻ Refresh</button></div></div>
-<div className="notice"><span>ⓘ</span><p>{data.mode==='testnet'?'Solana testnet · TEST-USD and TEST-MEME have no monetary value. Live X candidates are mainnet assets; this demo buys a separate proxy token.':'Rehearsal mode · Explore the full workflow without a wallet. Purchases and balances are simulated; no blockchain transactions are sent.'}</p><button onClick={()=>setShowSettings(!showSettings)}>Connection settings ↗</button></div>
-{showSettings&&<section className="settings panel"><div><h2>Testnet operator access</h2><p>Use the operator access token configured on your server. It stays in this tab’s memory.</p></div><label>Access token<input type="password" autoComplete="off" value={token} onChange={e=>setToken(e.target.value)} placeholder="Operator token"/></label><button className="primary" onClick={async()=>{await refresh();setShowSettings(false);}}>Connect</button><p className="fine">X credentials and wallet keys belong on the server. Never paste a wallet seed here.</p></section>}
-{message&&<div className="feedback" role="status"><span>{message.replaceAll('_',' ')}</span><button aria-label="Dismiss status" onClick={()=>setMessage('')}>×</button></div>}
-{(tab==='Overview'||tab==='Policy')&&<div className="metrics"><div><span>Available budget</span><strong>{p?dollars(remaining.toString()):'—'}<small> TEST-USD</small></strong><p>Lifetime allocation remaining</p></div><div><span>Per-purchase limit</span><strong>{p?dollars(p.maxAmount):'—'}<small> TEST-USD</small></strong><p>Checked before execution</p></div><div><span>Agent permission</span><strong className="permission"><i className={p?.active?'ok-dot':'off-dot'}/>{p?(p.active?'Active':'Revoked'):'Not connected'}</strong><p>{p?'Expires '+new Date(p.expiresAt*1000).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'Configure testnet to begin'}</p></div></div>}
-{tab==='Overview'&&<div className="workspace-grid"><section className="panel composer"><div className="panel-heading"><h2>What’s the move?</h2><span className="tag">Agent run</span></div><form onSubmit={(e:FormEvent)=>{e.preventDefault();void action('run');}}><label htmlFor="intent" className="sr-only">Your agent instruction</label><textarea id="intent" value={intent} onChange={e=>setIntent(e.target.value)} maxLength={2000}/><div className="compose-controls"><label>Spend up to<div className="amount-input"><span>$</span><input aria-label="Purchase budget" inputMode="decimal" value={budget} onChange={e=>setBudget(e.target.value)}/><span>TEST-USD</span></div></label><button className="primary" disabled={busy||!p} type="submit">{busy?'Working…':'Run agent'} <span>↑</span></button></div><div className="research-toggle"><label><input type="checkbox" checked={liveResearch} disabled={!data.xConfigured} onChange={e=>setLiveResearch(e.target.checked)}/> Search crypto X</label><span>{data.xConfigured?'Read-only · capped requests':'Fixtures enabled · X not connected'}</span></div></form><div className="divider"/><div className="scenario"><label htmlFor="scenario">Test the boundary</label><select id="scenario" value={scenario} onChange={e=>setScenario(e.target.value)}><option value="approved">Approved purchase</option><option value="over-limit">Exceed purchase limit</option><option value="cumulative">Exceed lifetime budget</option><option value="unauthorized">Unapproved recipient</option><option value="compromised">Compromised-agent request</option></select><p>The attack scenarios use the same agent identity. The proposed action changes.</p></div></section>
-<section className="panel flow"><div className="panel-heading"><h2>Execution pipeline</h2><span className="subtle">01 → 04</span></div><ol>{[['Intent','Goal and a separate numeric budget.'],['Research',latest?.research?latest.research.source:'X search or labeled fixtures.'],['Authorization',latest?.decision?latest.decision+' · '+latest.reason.replaceAll('_',' '):'Current policy, before execution.'],['Settlement',latest?.status==='FINALIZED'?'Finalized on Solana':latest?.status==='REHEARSED'?'Rehearsal only. No transaction sent.':'Awaiting an authorized purchase.']].map(([t,s],i)=><li key={t}><span className="step-number">{latest&&i<2?'✓':i+1}</span><div><h3>{t}</h3><p>{s}</p></div>{i===2&&latest?.decision&&<span className={'verdict '+latest.decision.toLowerCase()}>{latest.decision}</span>}</li>)}</ol><div className="pipeline-footer"><span>▧ Solana authorization</span><a href="https://github.com/veyro-real/veyro-protocol">View source ↗</a></div></section></div>}
-{tab==='Overview'&&<section className="panel research"><div className="panel-heading"><h2>Research candidates</h2><span className="tag">{latest?.research?.source||'No research yet'}</span></div>{latest?.research?<div className="candidates">{latest.research.candidates.map((c,i)=><article key={c.mint||c.symbol}><div className="coin-icon">{c.symbol.slice(0,1)}</div><div><h3>{c.name} {i===0&&<span className="tiny-tag">Candidate</span>}</h3><p>{c.reason}</p>{c.mint&&<code>{short(c.mint)}</code>}</div><div className="candidate-score"><strong>{c.score}</strong><span>engagement score</span>{c.sourceUrl&&<a href={c.sourceUrl} target="_blank" rel="noreferrer">View post ↗</a>}</div></article>)}</div>:<div className="empty"><span>⌕</span><h3>Your agent’s research will appear here.</h3><p>Run an intent to see candidates and their source.</p></div>}</section>}
-{tab==='Policy'&&<div className="workspace-grid"><section className="panel policy-form"><div className="panel-heading"><h2>Owner-defined limits</h2><span className="tag">Owner action</span></div><label>Maximum per purchase · TEST-USD<input value={budget} onChange={e=>setBudget(e.target.value)} inputMode="decimal"/></label><label>Lifetime spending limit · TEST-USD<input value={total} onChange={e=>setTotal(e.target.value)} inputMode="decimal"/></label><label>Allowed recipient wallets · comma separated<input value={allowedRecipients} onChange={e=>setAllowedRecipients(e.target.value)} placeholder={p?.allowedRecipients.join(', ')||'Demo owner wallet'}/></label><label>Allowed Solana programs · comma separated<input value={allowedPrograms} onChange={e=>setAllowedPrograms(e.target.value)} placeholder={p?.allowedPrograms.join(', ')||'Classic SPL Token'}/></label><label>Expires after · hours<input value={hours} onChange={e=>setHours(e.target.value)} type="number" min="0.05" max="24" step="0.05"/></label><button className="primary" disabled={busy} onClick={()=>action('configure')}>Create policy</button><p className="fine">Up to 8 recipients and 4 programs. Empty fields use the safe demo defaults.</p></section><section className="panel policy-details"><div className="panel-heading"><h2>Authorization scope</h2></div><dl><dt>Network</dt><dd>{data.network}</dd><dt>Allowed asset</dt><dd>TEST-USD → TEST-MEME</dd><dt>Route</dt><dd>Fixed-price test pool</dd><dt>Programs</dt><dd>{p?.allowedPrograms.map(short).join(', ')||'—'}</dd><dt>Recipients</dt><dd>{p?.allowedRecipients.map(short).join(', ')||'—'}</dd><dt>Minimum output</dt><dd>990 units per input unit</dd><dt>Policy</dt><dd><code>{p?short(p.address):'Not connected'}</code></dd></dl><button className="danger" disabled={busy||!p?.active} onClick={()=>action('revoke')}>Revoke agent access</button><p className="fine">Effective in chain order. A transaction settled before revocation cannot be undone.</p><button className="secondary" disabled={busy||data.mode!=='testnet'} onClick={()=>action('faucet')}>Request test SOL for execution fees ↗</button></section></div>}
-{(tab==='Activity'||tab==='Overview')&&<section className="panel activity"><div className="panel-heading"><h2>Recent activity <span className="count">{data.attempts.length}</span></h2><button className="text-button" disabled={busy} onClick={()=>action('reconcile')}>Reconcile receipts ↻</button></div>{data.attempts.length?<div className="table-scroll"><table><thead><tr><th>Agent / request</th><th>Policy</th><th>Result</th><th>Timestamp</th><th>Receipt</th></tr></thead><tbody>{data.attempts.slice(0,tab==='Overview'?5:100).map(a=><tr key={a.id}><td><strong>{a.agent?short(a.agent):a.kind}</strong><span className="reason">{a.kind==='run'?'Agent purchase':a.kind} · {JSON.stringify(a.request).slice(0,90)}</span></td><td><code>{a.policy?.address?short(a.policy.address):'—'}</code></td><td><span className={'verdict '+(a.decision||'').toLowerCase()}>{a.decision||'—'}</span><span className="reason">{a.reason.replaceAll('_',' ')}</span></td><td>{new Date(a.at).toLocaleString()}</td><td>{a.executedSignature?<a href={'https://explorer.solana.com/tx/'+a.executedSignature+'?cluster=testnet'} target="_blank" rel="noreferrer">View ↗</a>:<span className="subtle">{a.candidateSignature?'Pending':'No transaction'}</span>}</td></tr>)}</tbody></table></div>:<div className="empty compact"><p>No attempts yet. Your first run starts the audit trail.</p></div>}</section>}
-{tab==='Connect'&&<section className="panel connect"><span className="tag">MCP + HTTP</span><h2>Your chat. Your agent. Veyro underneath.</h2><p>Connect a bearer-token-capable MCP client to your deployed server. The agent can research, read policy and request an authorized test-token purchase. Owner controls stay separate.</p><div className="endpoint"><code>/api/mcp</code><button className="secondary" onClick={()=>{void navigator.clipboard.writeText(location.origin+'/api/mcp').then(()=>setMessage('Endpoint copied')).catch(()=>setMessage('Copy the /api/mcp endpoint from this page.'));}}>Copy URL</button></div><div className="tool-list"><div><code>veyro_policy</code><p>Inspect current permissions.</p></div><div><code>veyro_research</code><p>Find verified Solana mint candidates.</p></div><div><code>veyro_execute</code><p>Request a testnet proxy-token purchase.</p></div></div><p className="fine">Set VEYRO_AGENT_TOKEN on the server and send it as a Bearer token. The operator token must remain separate. Hosted OAuth discovery and native mobile-wallet custody are not implemented.</p><a className="secondary inline" href="https://github.com/veyro-real/veyro-live">Connection guide ↗</a></section>}
-<footer><span><i/> {data.mode==='rehearsal'?'Rehearsal · no real funds':'Solana testnet · no real funds'}</span><span>Veyro / Early developer preview</span><a href="https://github.com/veyro-real">GitHub ↗</a></footer></main></>}
+const dollars=(value:string)=>new Intl.NumberFormat('en-US',{maximumFractionDigits:2}).format(Number(BigInt(value||'0'))/1e6);
+const short=(value:string)=>value.length>18?value.slice(0,6)+'…'+value.slice(-5):value;
+const words=(value:string)=>value.replaceAll('_',' ').toLowerCase();
+
+export default function Live(){
+ const [data,setData]=useState<State>(initial);
+ const [intent,setIntent]=useState('Find the dumbest meme coin. Here’s $100. Make me money.');
+ const [budget,setBudget]=useState('100');
+ const [total,setTotal]=useState('150');
+ const [hours,setHours]=useState('1');
+ const [allowedRecipients,setAllowedRecipients]=useState('');
+ const [allowedPrograms,setAllowedPrograms]=useState('');
+ const [liveResearch,setLiveResearch]=useState(false);
+ const [scenario,setScenario]=useState('approved');
+ const [busy,setBusy]=useState(false);
+ const [message,setMessage]=useState('');
+ const [token,setToken]=useState('');
+ const [session,setSession]=useState('');
+ const [requestId,setRequestId]=useState('');
+ const [showAccess,setShowAccess]=useState(false);
+
+ useEffect(()=>{let id=localStorage.getItem('veyro-session');if(!id){id=crypto.randomUUID();localStorage.setItem('veyro-session',id);}setSession(id);setRequestId(crypto.randomUUID());},[]);
+ useEffect(()=>{if(session)void refresh();},[session]);
+
+ function headers(){return {'Content-Type':'application/json','x-veyro-session':session,...(token?{Authorization:'Bearer '+token}:{})};}
+ async function refresh(){try{const response=await fetch('/api/state',{headers:headers(),cache:'no-store'});const value=await response.json();setData(value);if(value.error)setMessage(value.error);}catch{setMessage('Could not reach Veyro.');}}
+ async function action(kind:string){
+  if(busy)return;
+  setBusy(true);setMessage('');
+  try{
+   const id=kind==='run'?requestId:crypto.randomUUID();
+   const response=await fetch('/api/action',{method:'POST',headers:headers(),body:JSON.stringify({action:kind,requestId:id,intent,budget,total,hours,allowedRecipients,allowedPrograms,liveResearch,scenario})});
+   const value=await response.json();
+   if(value.error)throw Error(value.error);
+   setData(value);setMessage(value.attempt?.reason||'Updated');
+   if(kind==='run')setRequestId(crypto.randomUUID());
+  }catch(error){setMessage((error as Error).message);}finally{setBusy(false);}
+ }
+
+ const policy=data.policy;
+ const remaining=policy?BigInt(policy.totalLimit)-BigInt(policy.spent):0n;
+ const latest=data.attempts.find(attempt=>attempt.kind==='run'||attempt.kind==='research');
+ const signature=latest?.executedSignature||latest?.candidateSignature;
+ const topCandidate=latest?.selected||latest?.research?.candidates?.[0];
+
+ return <>
+  <header className="topbar">
+   <a className="brand" href="/" aria-label="Veyro home"><span>V</span><b>veyro</b></a>
+   <div className="header-links">
+    <span className="network"><i/>{data.network}</span>
+    <a href="https://github.com/veyro-real/veyro-protocol" target="_blank" rel="noreferrer">Protocol ↗</a>
+    <button className="ghost" onClick={()=>setShowAccess(true)}>Connect</button>
+   </div>
+  </header>
+
+  <main>
+   <section className="hero">
+    <span className="eyebrow">VEYRO LIVE</span>
+    <h1>Give the agent a goal.<br/>Keep control of the money.</h1>
+    <p>Three steps. Every purchase is checked before funds move.</p>
+   </section>
+
+   {message&&<div className="feedback" role="status"><span>{words(message)}</span><button onClick={()=>setMessage('')} aria-label="Dismiss">×</button></div>}
+
+   <section className="step-card">
+    <div className="step-number">1</div>
+    <div className="step-body">
+     <div className="step-title"><div><h2>Set the limit</h2><p>You decide how much the agent can spend.</p></div>{policy&&<span className={'status '+(policy.active?'allow':'deny')}><i/>{policy.active?'Active':'Revoked'}</span>}</div>
+     <div className="limit-row">
+      <label><span>Per purchase</span><div className="money"><b>$</b><input value={budget} onChange={event=>setBudget(event.target.value)} inputMode="decimal"/><small>USDC</small></div></label>
+      <label><span>Total allowance</span><div className="money"><b>$</b><input value={total} onChange={event=>setTotal(event.target.value)} inputMode="decimal"/><small>USDC</small></div></label>
+      <label><span>Expires in</span><div className="money"><input value={hours} onChange={event=>setHours(event.target.value)} type="number" min="0.05" max="24" step="0.05"/><small>HOURS</small></div></label>
+     </div>
+     <div className="action-row"><button className="primary" disabled={busy} onClick={()=>void action('configure')}>{busy?'Saving…':'Save limits'}</button>{policy&&<span className="summary">${dollars(remaining.toString())} remaining</span>}</div>
+     <details><summary>Advanced policy controls</summary><div className="advanced-grid"><label>Allowed recipient wallets<input value={allowedRecipients} onChange={event=>setAllowedRecipients(event.target.value)} placeholder={policy?.allowedRecipients.join(', ')||'Safe demo default'}/></label><label>Allowed Solana programs<input value={allowedPrograms} onChange={event=>setAllowedPrograms(event.target.value)} placeholder={policy?.allowedPrograms.join(', ')||'SPL Token program'}/></label></div><div className="detail-actions"><button className="danger" disabled={busy||!policy?.active} onClick={()=>void action('revoke')}>Revoke agent</button><button className="secondary" disabled={busy||data.mode!=='testnet'} onClick={()=>void action('faucet')}>Request test SOL</button></div></details>
+    </div>
+   </section>
+
+   <section className="step-card">
+    <div className="step-number">2</div>
+    <div className="step-body">
+     <div className="step-title"><div><h2>Tell the agent what to do</h2><p>Use the same plain-language request you would make from your phone.</p></div></div>
+     <form onSubmit={(event:FormEvent)=>{event.preventDefault();void action('run');}}>
+      <textarea aria-label="Agent instruction" value={intent} onChange={event=>setIntent(event.target.value)} maxLength={2000}/>
+      <div className="run-row">
+       <label className="toggle"><input type="checkbox" checked={liveResearch} disabled={!data.xConfigured} onChange={event=>setLiveResearch(event.target.checked)}/><span>Search crypto X</span><small>{data.xConfigured?'connected':'not connected'}</small></label>
+       <button className="primary run" disabled={busy||!policy} type="submit">{busy?'Working…':'Run agent'} <span>→</span></button>
+      </div>
+     </form>
+     <details><summary>Demo a blocked request</summary><select value={scenario} onChange={event=>setScenario(event.target.value)}><option value="approved">Approved purchase</option><option value="over-limit">Over the purchase limit</option><option value="cumulative">Over the total allowance</option><option value="unauthorized">Unapproved recipient</option><option value="compromised">Compromised agent</option></select></details>
+    </div>
+   </section>
+
+   <section className="step-card result-card">
+    <div className="step-number">3</div>
+    <div className="step-body">
+     <div className="step-title"><div><h2>See the decision</h2><p>Veyro checks the policy before execution.</p></div><button className="text-button" disabled={busy} onClick={()=>void action('reconcile')}>Refresh</button></div>
+     {latest?<div className="result">
+      <div className={'decision '+(latest.decision||'').toLowerCase()}><span>{latest.decision||'PENDING'}</span><strong>{words(latest.reason)}</strong><small>{latest.status.toLowerCase()}</small></div>
+      <div className="flow"><span className="done">Intent</span><i>→</i><span className="done">Research</span><i>→</i><span className={latest.decision?'done':''}>Policy check</span><i>→</i><span className={latest.executedSignature?'done':''}>Settlement</span></div>
+      {topCandidate&&<div className="candidate"><div className="coin">{topCandidate.symbol.slice(0,1)}</div><div><span>Selected candidate</span><strong>{topCandidate.name} · ${topCandidate.symbol}</strong>{topCandidate.mint&&<code>{short(topCandidate.mint)}</code>}</div>{topCandidate.sourceUrl&&<a href={topCandidate.sourceUrl} target="_blank" rel="noreferrer">Source ↗</a>}</div>}
+      {signature&&<div className="receipts"><span>Transaction receipt</span><a href={'https://solscan.io/tx/'+signature+'?cluster=testnet'} target="_blank" rel="noreferrer">Solscan ↗</a><a href={'https://explorer.solana.com/tx/'+signature+'?cluster=testnet'} target="_blank" rel="noreferrer">Explorer ↗</a></div>}
+     </div>:<div className="empty-result"><span>Waiting for your first run.</span><p>The policy decision and transaction receipt will appear here.</p></div>}
+    </div>
+   </section>
+
+   <details className="audit">
+    <summary>View full audit trail <span>{data.attempts.length}</span></summary>
+    <div className="table-scroll"><table><thead><tr><th>Request</th><th>Decision</th><th>Reason</th><th>Time</th><th>Receipt</th></tr></thead><tbody>{data.attempts.map(attempt=><tr key={attempt.id}><td>{attempt.kind}</td><td><span className={'status '+(attempt.decision||'').toLowerCase()}>{attempt.decision||'—'}</span></td><td>{words(attempt.reason)}</td><td>{new Date(attempt.at).toLocaleString()}</td><td>{attempt.executedSignature?<a href={'https://solscan.io/tx/'+attempt.executedSignature+'?cluster=testnet'} target="_blank" rel="noreferrer">Solscan ↗</a>:'—'}</td></tr>)}</tbody></table></div>
+   </details>
+
+   <section className="chain-bar"><div><span>Protocol address</span><code>{short(PROGRAM_ID)}</code></div><div><a href={'https://solscan.io/account/'+PROGRAM_ID+'?cluster=testnet'} target="_blank" rel="noreferrer">Solscan ↗</a><a href={'https://explorer.solana.com/address/'+PROGRAM_ID+'?cluster=testnet'} target="_blank" rel="noreferrer">Explorer ↗</a></div></section>
+
+   <footer><span>Veyro · early developer preview</span><span>{data.cloudAudit?'Supabase connected':'Storage unavailable'}</span></footer>
+  </main>
+
+  {showAccess&&<div className="overlay" role="dialog" aria-modal="true" aria-label="Connect to Veyro"><section className="access-card"><button className="close" onClick={()=>setShowAccess(false)} aria-label="Close">×</button><span className="eyebrow">ACCESS</span><h2>Connect to Veyro</h2><p>Enter the operator token stored in Railway. It stays in this browser tab.</p><label>Operator token<input type="password" autoComplete="off" value={token} onChange={event=>setToken(event.target.value)} placeholder="Paste operator token"/></label><button className="primary wide" onClick={async()=>{await refresh();setShowAccess(false);}}>Connect</button><p className="security-note">Never enter a wallet seed phrase here.</p></section></div>}
+ </>;
+}
