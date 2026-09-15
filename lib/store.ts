@@ -65,3 +65,13 @@ export async function claimRequest(session:string,key:string):Promise<string|nul
  return checked(data,error) as string|null;
 }
 export async function finishRequest(session:string,key:string,attempt:string){await saveState('request:'+session+':'+key,attempt);}
+export async function getSecret(id:string):Promise<unknown|null>{
+ if(memoryEnabled())return memoryState.get('secret:'+id)??null;
+ const {data,error}=await supabase().from('veyro_secrets').select('encrypted_value').eq('id',id).maybeSingle();
+ return (checked(data,error)?.encrypted_value as unknown|undefined)??null;
+}
+export async function saveSecret(id:string,encryptedValue:unknown){
+ if(memoryEnabled()){memoryState.set('secret:'+id,encryptedValue);return;}
+ const {error}=await supabase().from('veyro_secrets').upsert({id,encrypted_value:encryptedValue,updated_at:new Date().toISOString()});
+ checked(null,error);
+}
