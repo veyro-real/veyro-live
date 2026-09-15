@@ -9,6 +9,7 @@ type State={mode:string;network:string;xConfigured:boolean;cloudAudit?:boolean;p
 type PhantomProvider={publicKey?:{toString():string};connect():Promise<{publicKey:{toString():string}}>};
 
 const PROGRAM_ID='2Z7xH99Z4YvG4U2Ew5PUZtVh8FE1VRhQ1Mo9dFvRvS3Q';
+const DEPLOY_TX='5vAZwzkAap1dGa9Sq2JJdnfBrKPXKjkSBWsqdAwjkrZtcS7oUooqYh7QpGC1V9hfdtmJPW7r6fFDjsFW8tnn4mKZ';
 const initial:State={mode:'rehearsal',network:'Connecting',xConfigured:false,policy:null,attempts:[]};
 const short=(value:string)=>value.length>16?value.slice(0,5)+'...'+value.slice(-5):value;
 const dollars=(value:string)=>Number(BigInt(value||'0'))/1e6;
@@ -93,7 +94,7 @@ export default function Live(){
    <section className="command-card">
     <div className="card-head">
      <div><span className="eyebrow">LIVE DEMO</span><h1>Ask the agent. Veyro checks the spend.</h1></div>
-     <span className="pill"><i/>{data.xConfigured?'X ready':'Demo mode'}</span>
+     <span className="pill"><i/>Mainnet deployed</span>
     </div>
     <form onSubmit={event=>void run(event)}>
      <label className="prompt-label">What do you want?</label>
@@ -115,9 +116,9 @@ export default function Live(){
     </div>
    </section>
    <section className="below">
-    <div><span>Program</span><a href={`https://solscan.io/account/${PROGRAM_ID}${data.mode==='testnet'?'?cluster=testnet':''}`} target="_blank" rel="noreferrer">{short(PROGRAM_ID)}</a></div>
-    <div><span>Network</span><b>{data.network}</b></div>
-    <div><span>Audit</span><b>{data.attempts.length} attempts</b></div>
+    <div><span>Program</span><a href={`https://solscan.io/account/${PROGRAM_ID}`} target="_blank" rel="noreferrer">{short(PROGRAM_ID)}</a></div>
+    <div><span>Network</span><b>Solana mainnet</b></div>
+    <div><span>Deploy tx</span><a href={`https://solscan.io/tx/${DEPLOY_TX}`} target="_blank" rel="noreferrer">{short(DEPLOY_TX)}</a></div>
    </section>
    <details className="operator"><summary>Operator token</summary><input type="password" value={token} onChange={event=>setToken(event.target.value)} placeholder="Paste operator token for live X or owner actions"/><button onClick={()=>void refresh()}>Apply</button></details>
   </main>
