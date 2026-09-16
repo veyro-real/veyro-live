@@ -14,6 +14,8 @@ const initial:State={mode:'rehearsal',network:'Connecting',xConfigured:false,pol
 const short=(value:string)=>value.length>16?value.slice(0,5)+'...'+value.slice(-5):value;
 const dollars=(value:string)=>Number(BigInt(value||'0'))/1e6;
 const words=(value:string)=>value.replaceAll('_',' ').toLowerCase();
+const promptFor=(value:string)=>`Find the dumbest meme coin on crypto X. Spend up to $${value||'0'}.`;
+const syncPromptBudget=(text:string,value:string)=>text.replace(/Spend up to \$[^.]+\.?/i,`Spend up to $${value||'0'}.`);
 
 function Mesh(){
  const ref=useRef<HTMLCanvasElement>(null);
@@ -43,7 +45,7 @@ function Mesh(){
 
 export default function Live(){
  const [data,setData]=useState<State>(initial);
- const [intent,setIntent]=useState('Find the dumbest meme coin on crypto X. Spend up to $1.');
+ const [intent,setIntent]=useState(promptFor('1'));
  const [budget,setBudget]=useState('1');
  const [token,setToken]=useState('');
  const [session,setSession]=useState('');
@@ -55,6 +57,7 @@ export default function Live(){
  useEffect(()=>{if(session)void refresh();},[session]);
 
  function headers(){return {'Content-Type':'application/json','x-veyro-session':session,...(token?{Authorization:'Bearer '+token}:{})};}
+ function updateBudget(value:string){setBudget(value);setIntent(text=>syncPromptBudget(text,value));}
  async function refresh(){try{const res=await fetch('/api/state',{headers:headers(),cache:'no-store'});const value=await res.json();setData(value);if(value.error)setMessage(value.error);}catch{setMessage('Could not reach Veyro.');}}
  async function action(kind:string,extra:Record<string,unknown>={}){
   const res=await fetch('/api/action',{method:'POST',headers:headers(),body:JSON.stringify({action:kind,requestId:crypto.randomUUID(),intent,budget,total:budget,hours:'1',liveResearch:data.xConfigured,scenario:'approved',...extra})});
@@ -100,7 +103,7 @@ export default function Live(){
      <label className="prompt-label">What do you want?</label>
      <textarea value={intent} onChange={event=>setIntent(event.target.value)} aria-label="Agent instruction" maxLength={500}/>
      <div className="limit-line">
-      <label><span>Spend limit</span><div><b>$</b><input value={budget} onChange={event=>setBudget(event.target.value)} inputMode="decimal"/><small>USDC</small></div></label>
+      <label><span>Spend limit</span><div><b>$</b><input value={budget} onChange={event=>updateBudget(event.target.value)} inputMode="decimal"/><small>USDC</small></div></label>
       <button className="run" disabled={busy}>{busy?'Running...':'Run agent'}</button>
      </div>
     </form>
