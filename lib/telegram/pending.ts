@@ -7,7 +7,7 @@
 // Postgres, so the loser sees the winner's mark rather than a stale read.
 
 import {claimRequest,getState,saveState} from '../store';
-import type {PendingBuy,PendingStore} from './router';
+import type {PendingBuy,PendingStore} from './ports';
 
 /** Long enough to read the confirmation, short enough that a stale tap dies. */
 const TTL_MS=10*60*1000;

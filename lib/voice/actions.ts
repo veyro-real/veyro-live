@@ -5,7 +5,7 @@
 // a new table, since it is short-lived UI state.
 
 import {getState,saveState} from '../store';
-import type {PendingAction,PendingActionStore} from '../telegram/router';
+import type {PendingAction,PendingActionStore} from '../telegram/ports';
 
 const TTL_MS=10*60*1000;
 const byId=(id:string)=>'tgaction:'+id;
