@@ -9,11 +9,14 @@
 
 import type {Candidate} from '../types';
 import {parseFeedMessage} from './pumpportal';
+import {parseTradeMessage,type Trade} from './trades';
 
 export type IngestDeps={
  recordCandidate(candidate:Candidate):Promise<void>;
  assessAndRecord(candidate:Candidate,liquiditySol:number|null,bondingCurveKey:string|null):Promise<void>;
  onError(error:unknown):void;
+ /** A trade on a token under observation. Synchronous and in-memory. */
+ onTrade(trade:Trade):void;
 };
 
 /** The only two streams this bot reads. Trades are deliberately not one. */
@@ -22,12 +25,28 @@ export const SUBSCRIPTIONS=[
  {method:'subscribeMigration'},
 ] as const;
 
+/** Sent per token once it is under observation, and withdrawn when it is not. */
+export const watchTrades=(mint:string)=>({method:'subscribeTokenTrade',keys:[mint]});
+export const unwatchTrades=(mint:string)=>({method:'unsubscribeTokenTrade',keys:[mint]});
+
 export async function handleFeedMessage(frame:string,deps:IngestDeps):Promise<void>{
  let decoded:unknown;
  try{
   decoded=JSON.parse(frame);
  }catch{
   return; // Not JSON. The feed sends keepalives and notices too.
+ }
+
+ // Trades arrive on the same socket as launches and are far more frequent,
+ // so they are checked first and never touch the database here.
+ const trade=parseTradeMessage(decoded);
+ if(trade){
+  try{
+   deps.onTrade(trade);
+  }catch(e){
+   deps.onError(e);
+  }
+  return;
  }
 
  const parsed=parseFeedMessage(decoded);

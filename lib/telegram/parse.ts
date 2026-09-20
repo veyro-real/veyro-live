@@ -23,6 +23,7 @@ export type Command=
  |{kind:'sell';positionId:string}
  |{kind:'positions';includeClosed:boolean}
  |{kind:'voice';on:boolean|null}
+ |{kind:'chatid'}
  |{kind:'usage';command:string}
  |{kind:'unknown'};
 
@@ -52,6 +53,8 @@ export function parseCommand(raw:string):Command{
   case 'connect':return {kind:'connect'};
   case 'wallet':return {kind:'wallet'};
   case 'revoke':return {kind:'revoke'};
+  // Lets a group tell you its own id, which is how alerts get configured.
+  case 'chatid':return {kind:'chatid'};
 
   case 'limits':{
    if(args.length===0)return {kind:'limits',set:null};

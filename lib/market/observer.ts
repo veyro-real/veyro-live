@@ -18,11 +18,16 @@ export type Watch={
  windowStart:number;
  windowEnd:number;
  trades:Trade[];
+ /** Curve state from the launch message, needed when the window closes. */
+ liquiditySol:number|null;
+ bondingCurveKey:string|null;
 };
+
+export type WatchDetails={liquiditySol?:number|null;bondingCurveKey?:string|null};
 
 export type Observer={
  /** True when a new watch started, so the caller can subscribe. */
- open(candidate:Candidate,now:number):boolean;
+ open(candidate:Candidate,now:number,details?:WatchDetails):boolean;
  /** True when the trade belonged to a watched token. */
  record(trade:Trade):boolean;
  /** Watches whose window has elapsed. */
@@ -44,7 +49,7 @@ export function createObserver(opts:{
  const watches=new Map<string,Watch>();
 
  return {
-  open(candidate,now){
+  open(candidate,now,details){
    if(watches.has(candidate.mint))return false;
    if(watches.size>=maxWatched){
     const oldest=watches.keys().next().value;
@@ -52,6 +57,8 @@ export function createObserver(opts:{
    }
    watches.set(candidate.mint,{
     candidate,windowStart:now,windowEnd:now+windowMs,trades:[],
+    liquiditySol:details?.liquiditySol??null,
+    bondingCurveKey:details?.bondingCurveKey??null,
    });
    return true;
   },

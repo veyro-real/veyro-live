@@ -124,10 +124,16 @@ export function rpcReader():ChainReader{
  };
 }
 
+/** The subset of observed order flow that the existing Features contract
+ *  already has fields for. The richer flow measurements are stored
+ *  alongside the assessment rather than squeezed in here. */
+export type ObservedFlow={buys:number;sells:number;uniqueBuyers:number};
+
 export function buildFeatures(
  candidate:Candidate,
  liquiditySol:number|null,
  facts:MintFacts,
+ flow?:ObservedFlow,
 ):Features{
  return {
   ageSeconds:Math.max(0,Math.round((Date.now()-Date.parse(candidate.firstSeen))/1000)),
@@ -138,9 +144,9 @@ export function buildFeatures(
   creatorGraduationCount:null,
   liquiditySol,
   marketCapSol:candidate.marketCapSol,
-  buyCount:null,
-  sellCount:null,
-  uniqueBuyers:null,
+  buyCount:flow?.buys??null,
+  sellCount:flow?.sells??null,
+  uniqueBuyers:flow?.uniqueBuyers??null,
   mintAuthorityRevoked:facts.mintAuthorityRevoked,
   freezeAuthorityRevoked:facts.freezeAuthorityRevoked,
  };

@@ -86,3 +86,8 @@ test('voice toggles, and can be set explicitly',()=>{
  assert.deepEqual(parseCommand('/voice off'),{kind:'voice',on:false});
  assert.equal(parseCommand('/voice maybe').kind,'usage');
 });
+
+test('chatid is a command, so a group can identify itself',()=>{
+ assert.deepEqual(parseCommand('/chatid'),{kind:'chatid'});
+ assert.deepEqual(parseCommand('/chatid@theveyrobotbot'),{kind:'chatid'});
+});

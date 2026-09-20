@@ -74,3 +74,20 @@ test('evicting a watch also stops its stream',()=>{
  assert.equal(evicted,true);
  assert.equal(o.record(trade('M1',T0+2000)),false,'the dropped token is no longer tracked');
 });
+
+test('the curve details from the launch survive until the window closes',()=>{
+ const o=createObserver({windowMs:30_000});
+ o.open(cand('M1'),T0,{liquiditySol:32.5,bondingCurveKey:'BC1'});
+ const w=o.close('M1')!;
+ assert.equal(w.liquiditySol,32.5);
+ assert.equal(w.bondingCurveKey,'BC1',
+  'without this, concentration cannot exclude the curve when the window closes');
+});
+
+test('a launch with no curve details carries nulls, not guesses',()=>{
+ const o=createObserver({windowMs:30_000});
+ o.open(cand('M2'),T0);
+ const w=o.close('M2')!;
+ assert.equal(w.liquiditySol,null);
+ assert.equal(w.bondingCurveKey,null);
+});

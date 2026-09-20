@@ -115,6 +115,9 @@ async function onMessage(update:TelegramUpdate,deps:Deps):Promise<void>{
    'Set your limits with /limits before anything can be spent, then /wallet for '+
    'your deposit address. /help lists the rest.');
  }
+ if(command.kind==='chatid'){
+  return void await send('Chat id: '+chatId+'\n\nSet VEYRO_ALERT_CHAT_ID to this to receive feed alerts here.');
+ }
  if(command.kind==='connect'){
   return void await send('Linking an x.com account is not available yet. Everything else works without it.');
  }

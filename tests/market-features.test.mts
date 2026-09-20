@@ -98,3 +98,26 @@ test('features combine the feed numbers with the chain facts',()=>{
  assert.equal(f.top10Pct,12);
  assert.equal(f.holders,null,'not measured, so not claimed');
 });
+
+test('observed flow fills the trade fields the filter already understands',()=>{
+ const c:Candidate={
+  mint:MINT,symbol:'WIF',name:'dogwifhat',launchpad:'pump.fun',creator:'C',
+  firstSeen:new Date(Date.now()-30_000).toISOString(),initialBuySol:2,marketCapSol:40,uri:'x',
+ };
+ const facts={mintAuthorityRevoked:true,freezeAuthorityRevoked:true,top10Pct:18};
+ const f=buildFeatures(c,31,facts,{buys:40,sells:6,uniqueBuyers:33});
+ assert.equal(f.buyCount,40);
+ assert.equal(f.sellCount,6);
+ assert.equal(f.uniqueBuyers,33);
+ assert.equal(f.holders,null,'holder count still is not measured, so it is not claimed');
+});
+
+test('without an observation those fields stay unmeasured',()=>{
+ const c:Candidate={
+  mint:MINT,symbol:'WIF',name:'d',launchpad:'pump.fun',creator:'C',
+  firstSeen:new Date().toISOString(),initialBuySol:1,marketCapSol:10,uri:'x',
+ };
+ const f=buildFeatures(c,5,{mintAuthorityRevoked:true,freezeAuthorityRevoked:true,top10Pct:10});
+ assert.equal(f.buyCount,null);
+ assert.equal(f.uniqueBuyers,null);
+});

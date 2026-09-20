@@ -15,6 +15,7 @@ function harness(over:Partial<IngestDeps>={}){
   recordCandidate:async c=>{recorded.push(c.mint);},
   assessAndRecord:async(c,liquiditySol)=>{assessed.push({mint:c.mint,liquiditySol});},
   onError:()=>{},
+  onTrade:()=>{},
   ...over,
  };
  return {deps,recorded,assessed};
@@ -86,4 +87,35 @@ test('the bonding curve address reaches the assessment',async()=>{
  const h=harness({assessAndRecord:async(_c,_l,curve)=>{seen.push(curve);}});
  await handleFeedMessage(JSON.stringify({...create,bondingCurveKey:'BC1'}),h.deps);
  assert.deepEqual(seen,['BC1']);
+});
+
+const tradeFrame={
+ signature:'s',mint:MINT,traderPublicKey:'Buyer1',txType:'buy',
+ tokenAmount:1000,solAmount:0.35,vSolInBondingCurve:34.2,marketCapSol:43.1,pool:'pump',
+};
+
+test('a trade frame reaches the observer, not the candidate table',async()=>{
+ const seen:any[]=[];
+ const h=harness({onTrade:t=>{seen.push(t);}});
+ await handleFeedMessage(JSON.stringify(tradeFrame),h.deps);
+ assert.equal(seen.length,1);
+ assert.equal(seen[0].trader,'Buyer1');
+ assert.equal(seen[0].side,'buy');
+ assert.deepEqual(h.recorded,[],'a trade is not a new candidate');
+ assert.deepEqual(h.assessed,[],'and it does not trigger an assessment');
+});
+
+test('a launch is still a launch, not a trade',async()=>{
+ const seen:any[]=[];
+ const h=harness({onTrade:t=>{seen.push(t);}});
+ await handleFeedMessage(JSON.stringify(create),h.deps);
+ assert.equal(seen.length,0);
+ assert.deepEqual(h.recorded,[MINT]);
+});
+
+test('a throwing trade handler does not kill the socket loop',async()=>{
+ const errors:string[]=[];
+ const h=harness({onTrade:()=>{throw Error('boom');},onError:e=>errors.push(String(e))});
+ await handleFeedMessage(JSON.stringify(tradeFrame),h.deps);
+ assert.equal(errors.length,1);
 });
