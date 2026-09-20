@@ -21,6 +21,7 @@ export const THRESHOLDS={
  maxAgeSeconds:3600,
  minUniqueBuyers:5,
  bundledBuysPerBuyer:8,     // buys per distinct buyer above this looks bundled
+ minFloatHolders:5,         // below this there is no distribution to judge
 } as const;
 
 export function assess(candidate:Candidate,features:Features):Assessment{
@@ -31,10 +32,17 @@ export function assess(candidate:Candidate,features:Features):Assessment{
  if(f.mintAuthorityRevoked!==true)r.push('MINT_AUTHORITY_LIVE');
  if(f.freezeAuthorityRevoked!==true)r.push('FREEZE_AUTHORITY_LIVE');
 
- // Concentration is a safety claim, so unknown rejects. A rate-limited RPC
- // returning null must not read as "the float is well distributed" -- that
- // would make the filter more permissive exactly when it knows least.
- if(f.top10Pct===null||f.top10Pct>THRESHOLDS.maxTop10Pct)r.push('INSIDER_CONCENTRATION');
+ // Concentration is a safety claim, so unknown rejects -- but only once
+ // there is something to concentrate. Seconds after launch a pump.fun
+ // supply sits in protocol accounts with three or four holders behind it,
+ // and "the top ten hold everything" is then a statement about the float
+ // not existing yet, not about insiders. Too early to tell and failed to
+ // measure are different, and conflating them rejected every launch.
+ if(f.floatHolders!==null&&f.floatHolders<THRESHOLDS.minFloatHolders){
+  // Not applicable at this stage.
+ }else if(f.top10Pct===null||f.top10Pct>THRESHOLDS.maxTop10Pct){
+  r.push('INSIDER_CONCENTRATION');
+ }
 
  if(f.creatorLaunchCount!==null){
   if(f.creatorLaunchCount>THRESHOLDS.maxCreatorLaunches)r.push('CREATOR_SERIAL_LAUNCHER');

@@ -1,11 +1,11 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-const {readMintFacts,buildFeatures,curveTokenAccount}=await import('../lib/market/features');
+const {readMintFacts,buildFeatures}=await import('../lib/market/features');
 import type {ChainReader} from '../lib/market/features';
 import type {Candidate} from '../lib/types';
 
 const MINT='Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB';
 const CURVE='8SgNwESovnbG1oNEaPVhg6CR9mTMSK7jPvcYRe3wpump';
-const acct=(address:string,amount:string|number)=>({address,amount:String(amount)});
+const acct=(address:string,amount:string|number,owner='someone')=>({address,amount:String(amount),owner});
 const reader=(o:Partial<ChainReader>={}):ChainReader=>({
  mintInfo:async()=>({mintAuthority:null,freezeAuthority:null,supply:'1000',decimals:0}),
  largestAccounts:async()=>[],
@@ -45,30 +45,30 @@ test('only the ten largest count',async()=>{
 });
 
 test('the bonding curve is excluded from both the holders and the float',async()=>{
- // supply 1000: curve holds 800, real holders hold 200, top of them is 50.
- const curveAta=curveTokenAccount(CURVE,MINT);
+ // supply 1000: curve holds 800, real holders hold 200 between them.
  const f=await readMintFacts(MINT,reader({
-  largestAccounts:async()=>[acct(curveAta,800),acct('h1',50),acct('h2',50),acct('h3',100)],
+  largestAccounts:async()=>[
+   acct('curveAta',800,CURVE),acct('h1',50,'w1'),acct('h2',50,'w2'),acct('h3',100,'w3'),
+  ],
  }),CURVE);
- // 200 of float held by the top holders, all of it, so 100%... but the point
- // is the curve's 800 is gone from both sides of the ratio.
+ // The curve's 800 is gone from both sides of the ratio.
  assert.equal(f.top10Pct,100);
 });
 
 test('excluding the curve is what lets a fresh launch look distributed',async()=>{
- const curveAta=curveTokenAccount(CURVE,MINT);
- const holders=Array.from({length:30},(_,i)=>acct('h'+i,10)); // 300 spread wide
+ const holders=Array.from({length:30},(_,i)=>acct('h'+i,10,'w'+i)); // 300 spread wide
  const f=await readMintFacts(MINT,reader({
   mintInfo:async()=>({mintAuthority:null,freezeAuthority:null,supply:'1000',decimals:0}),
-  largestAccounts:async()=>[acct(curveAta,700),...holders],
+  largestAccounts:async()=>[acct('curveAta',700,CURVE),...holders],
  }),CURVE);
  // float 300, top ten of it = 100, so 33.3%
  assert.ok(f.top10Pct!==null&&f.top10Pct>33&&f.top10Pct<34,'got '+f.top10Pct);
 });
 
 test('a curve holding the entire supply leaves no float to measure',async()=>{
- const curveAta=curveTokenAccount(CURVE,MINT);
- const f=await readMintFacts(MINT,reader({largestAccounts:async()=>[acct(curveAta,1000)]}),CURVE);
+ const f=await readMintFacts(MINT,reader({
+  largestAccounts:async()=>[acct('curveAta',1000,CURVE)],
+ }),CURVE);
  assert.equal(f.top10Pct,null,'no float is unknown, not zero');
 });
 
@@ -78,13 +78,6 @@ test('zero supply does not divide by zero',async()=>{
   largestAccounts:async()=>[acct('a',10)],
  }));
  assert.equal(f.top10Pct,null);
-});
-
-test('the derived curve account is deterministic and not the curve address itself',()=>{
- const a=curveTokenAccount(CURVE,MINT);
- assert.equal(a,curveTokenAccount(CURVE,MINT));
- assert.notEqual(a,CURVE);
- assert.ok(a.length>=32);
 });
 
 test('features combine the feed numbers with the chain facts',()=>{
@@ -120,4 +113,65 @@ test('without an observation those fields stay unmeasured',()=>{
  const f=buildFeatures(c,5,{mintAuthorityRevoked:true,freezeAuthorityRevoked:true,top10Pct:10});
  assert.equal(f.buyCount,null);
  assert.equal(f.uniqueBuyers,null);
+});
+
+test('the curve is excluded by who owns the account, not by a derived address',async()=>{
+ // The real failure: pump.fun tokens are Token-2022, so a classic-SPL ATA
+ // derivation produces an address that appears nowhere in the holders.
+ const f=await readMintFacts(MINT,reader({
+  mintInfo:async()=>({mintAuthority:null,freezeAuthority:null,supply:'1000',decimals:0}),
+  largestAccounts:async()=>[
+   acct('curveAta',700,CURVE),   // owned by the bonding curve
+   ...Array.from({length:10},(_,i)=>acct('h'+i,30,'holder'+i)),
+  ],
+ }),CURVE);
+ // float is 300, top ten of it is 300, so 100% -- but the curve's 700 is gone
+ assert.equal(f.top10Pct,100);
+});
+
+test('an owner that merely looks similar is not excluded',async()=>{
+ const f=await readMintFacts(MINT,reader({
+  mintInfo:async()=>({mintAuthority:null,freezeAuthority:null,supply:'1000',decimals:0}),
+  largestAccounts:async()=>[acct('a',500,'NotTheCurve'),acct('b',500,'AlsoNot')],
+ }),CURVE);
+ assert.equal(f.top10Pct,100,'nothing excluded, so the full supply is the base');
+});
+
+test('several accounts owned by the curve are all excluded',async()=>{
+ const f=await readMintFacts(MINT,reader({
+  mintInfo:async()=>({mintAuthority:null,freezeAuthority:null,supply:'1000',decimals:0}),
+  largestAccounts:async()=>[
+   acct('c1',400,CURVE),acct('c2',300,CURVE),
+   acct('h1',150,'h1'),acct('h2',150,'h2'),
+  ],
+ }),CURVE);
+ assert.equal(f.top10Pct,100,'float is 300 and both holders are in the top ten');
+});
+
+test('an unknown owner does not silently count as the curve',async()=>{
+ const f=await readMintFacts(MINT,reader({
+  mintInfo:async()=>({mintAuthority:null,freezeAuthority:null,supply:'1000',decimals:0}),
+  largestAccounts:async()=>[acct('a',900,null as unknown as string),acct('h',100,'h')],
+ }),CURVE);
+ assert.equal(f.top10Pct,100,'unreadable owner stays counted, which is the cautious side');
+});
+
+test('the size of the real float is reported, not just its concentration',async()=>{
+ const f=await readMintFacts(MINT,reader({
+  mintInfo:async()=>({mintAuthority:null,freezeAuthority:null,supply:'1000',decimals:0}),
+  largestAccounts:async()=>[
+   acct('curve',700,CURVE),
+   acct('h1',200,'w1'),acct('h2',100,'w2'),
+   acct('empty',0,'w3'),
+  ],
+ }),CURVE);
+ assert.equal(f.floatHolders,2,'zero balances are not holders');
+});
+
+test('a token whose supply is entirely protocol held has no float holders',async()=>{
+ const f=await readMintFacts(MINT,reader({
+  largestAccounts:async()=>[acct('curve',1000,CURVE),acct('e',0,'w1')],
+ }),CURVE);
+ assert.equal(f.floatHolders,0);
+ assert.equal(f.top10Pct,null);
 });

@@ -105,3 +105,26 @@ test('unmeasured economics do not reject, because they are not safety claims',()
  assert.equal(a.passed,true);
  assert.deepEqual(a.rejections,[]);
 });
+
+test('concentration cannot reject a token that has no float yet',()=>{
+ // At 20 seconds a pump.fun supply sits in protocol accounts. Three holders
+ // is not a distribution, so "top 10 hold 100%" says nothing about insiders.
+ const a=assess(candidate(),clean({top10Pct:null,floatHolders:2}));
+ assert.equal(a.passed,true,'too early to tell is not the same as disqualified');
+ assert.deepEqual(a.rejections,[]);
+});
+
+test('once a float exists, unmeasured concentration rejects again',()=>{
+ const a=assess(candidate(),clean({top10Pct:null,floatHolders:40}));
+ assert.ok(a.rejections.includes('INSIDER_CONCENTRATION'),
+  'with real holders present, a failed read is a failed safety check');
+});
+
+test('a real float that is genuinely concentrated still rejects',()=>{
+ assert.ok(assess(candidate(),clean({top10Pct:80,floatHolders:40}))
+  .rejections.includes('INSIDER_CONCENTRATION'));
+});
+
+test('a real float that is well spread passes',()=>{
+ assert.equal(assess(candidate(),clean({top10Pct:22,floatHolders:40})).passed,true);
+});

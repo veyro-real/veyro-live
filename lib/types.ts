@@ -90,6 +90,9 @@ export type Features = {
  ageSeconds: number;
  holders: number | null;
  top10Pct: number | null;
+ /** Non-protocol accounts holding a non-zero balance. Below a handful there
+  *  is no distribution to judge, so concentration is not yet meaningful. */
+ floatHolders: number | null;
  creatorLaunchCount: number | null;
  creatorGraduationCount: number | null;
  liquiditySol: number | null;
