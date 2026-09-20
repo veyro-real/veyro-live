@@ -6,18 +6,15 @@
 // Signatures are frozen: change one and tell the channel owner first.
 
 import type {
- Assessment, Candidate, Limits, Position, Strategy, StrategyMatch, SwapResult, User,
+ Assessment, Candidate, Limits, Position, Strategy, StrategyMatch, TradeOutcome, User,
 } from './types';
+
+export type { TradeOutcome };
 
 export type ScanRow = {
  candidate: Candidate;
  assessment: Assessment;
  match: StrategyMatch | null;
-};
-
-export type TradeOutcome = {
- position: Position;
- result: SwapResult;
 };
 
 /** Idempotency key. The Telegram layer passes the update_id so a redelivered

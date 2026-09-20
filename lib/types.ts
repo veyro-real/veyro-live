@@ -184,3 +184,9 @@ export type SwapQuote = {
 export type SwapResult =
  | { ok: true; signature: string; outAmount: string }
  | { ok: false; reason: string; signature: string | null };
+
+/** The result of a buy or sell. Denials arrive here, they are not thrown. */
+export type TradeOutcome = {
+ position: Position;
+ result: SwapResult;
+};

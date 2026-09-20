@@ -10,6 +10,7 @@
     "test": "node --import tsx --test tests/*.test.mts"
   },
   "dependencies": {
+    "@solana/web3.js": "^1.99.0",
     "@supabase/supabase-js": "^2.116.0",
     "@veyro/core": "file:vendor/veyro-core",
     "@veyro/sdk": "file:vendor/veyro-sdk",

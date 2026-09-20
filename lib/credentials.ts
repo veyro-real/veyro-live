@@ -1,7 +1,7 @@
 import {createCipheriv,createDecipheriv,createHash,randomBytes} from 'node:crypto';
 import {getSecret,saveSecret} from './store';
 
-type SecretBox={iv:string;tag:string;value:string};
+export type SecretBox={iv:string;tag:string;value:string};
 export type CredentialName='xBearerToken'|'jupiterApiKey'|'mainnetRpcUrl';
 export type CredentialStatus=Record<CredentialName,boolean>;
 const names:CredentialName[]=['xBearerToken','jupiterApiKey','mainnetRpcUrl'];
@@ -11,12 +11,12 @@ function key(){
  if(raw.length<32)throw Error('CREDENTIALS_KEY_NOT_CONFIGURED');
  return createHash('sha256').update(raw).digest();
 }
-function encrypt(value:string):SecretBox{
+export function encryptSecret(value:string):SecretBox{
  const iv=randomBytes(12),cipher=createCipheriv('aes-256-gcm',key(),iv);
  const encrypted=Buffer.concat([cipher.update(value,'utf8'),cipher.final()]);
  return {iv:iv.toString('base64'),tag:cipher.getAuthTag().toString('base64'),value:encrypted.toString('base64')};
 }
-function decrypt(box:unknown):string|null{
+export function decryptSecret(box:unknown):string|null{
  if(!box||typeof box!=='object')return null;
  const b=box as Partial<SecretBox>;
  if(!b.iv||!b.tag||!b.value)return null;
@@ -28,13 +28,13 @@ export async function setCredential(name:CredentialName,value:string){
  if(!names.includes(name))throw Error('INVALID_CREDENTIAL');
  const trimmed=value.trim();
  if(!trimmed)return;
- await saveSecret(name,encrypt(trimmed));
+ await saveSecret(name,encryptSecret(trimmed));
 }
 export async function credential(name:CredentialName):Promise<string|null>{
  if(name==='xBearerToken'&&process.env.X_BEARER_TOKEN)return process.env.X_BEARER_TOKEN;
  if(name==='mainnetRpcUrl'&&process.env.SOLANA_MAINNET_READ_RPC_URL)return process.env.SOLANA_MAINNET_READ_RPC_URL;
  if(name==='jupiterApiKey'&&process.env.JUPITER_API_KEY)return process.env.JUPITER_API_KEY;
- return decrypt(await getSecret(name));
+ return decryptSecret(await getSecret(name));
 }
 export async function credentialStatus():Promise<CredentialStatus>{
  const entries=await Promise.all(names.map(async name=>[name,!!await credential(name)] as const));
