@@ -27,6 +27,8 @@ export type Sent={chatId:string;text:string;keyboard?:InlineKeyboard};
 export type Outbox={
  send(chatId:string,text:string,keyboard?:InlineKeyboard):Promise<void>;
  answer(callbackQueryId:string,text?:string):Promise<void>;
+ /** Telegram fetches the url itself; we never download the bytes. */
+ photo(chatId:string,imageUrl:string,caption:string,keyboard?:InlineKeyboard):Promise<void>;
 };
 
 /** A buy the user has been shown but has not yet confirmed. */
@@ -38,7 +40,13 @@ export type PendingStore={
  take(id:string):Promise<PendingBuy|null>;
 };
 
-export type Deps={app:AppSurface;out:Outbox;pending:PendingStore};
+export type Deps={
+ app:AppSurface;
+ out:Outbox;
+ pending:PendingStore;
+ /** Token metadata uri to a displayable image url, or null. */
+ image(uri:string|null):Promise<string|null>;
+};
 
 const CONFIRM='b:',CANCEL='x:';
 
@@ -109,7 +117,16 @@ async function onMessage(update:TelegramUpdate,deps:Deps):Promise<void>{
    return void await send('Strategy saved as version '+s.version+'.\n\n'+s.rawText);
   }
   case 'scan':return void await send(render.scan(await deps.app.scan(user.id,command.limit)));
-  case 'why':return void await send(render.why(await deps.app.explain(command.mint),command.mint));
+  case 'why':{
+   const row=await deps.app.explain(command.mint);
+   const text=render.why(row,command.mint);
+   const image=row?await deps.image(row.candidate.uri):null;
+   if(!image)return void await send(text);
+   // Telegram caps a caption at 1024 characters; the rest follows as text.
+   await deps.out.photo(chatId,image,text.slice(0,1000));
+   if(text.length>1000)await send(text.slice(1000));
+   return;
+  }
   case 'positions':{
    await deps.app.reconcilePositions(user.id);
    return void await send(render.positions(await deps.app.positions(user.id,command.includeClosed)));
@@ -122,10 +139,16 @@ async function onMessage(update:TelegramUpdate,deps:Deps):Promise<void>{
    // The commit point is the keyboard, not this message.
    const id=randomBytes(6).toString('hex');
    await deps.pending.put(id,{userId:user.id,chatId,mint:command.mint,sol:command.sol});
-   return void await send(
-    'Buy '+command.sol+' SOL of\n'+command.mint+'?\n\n'+
-    'This spends real funds and cannot be undone.',
-    [[{text:'Confirm buy',callback_data:CONFIRM+id},{text:'Cancel',callback_data:CANCEL+id}]]);
+   const keyboard:InlineKeyboard=
+    [[{text:'Confirm buy',callback_data:CONFIRM+id},{text:'Cancel',callback_data:CANCEL+id}]];
+
+   // Show what is being bought. A token we never measured says so instead
+   // of borrowing the look of one we did.
+   const row=await deps.app.explain(command.mint);
+   const caption=render.confirm(command.mint,command.sol,row);
+   const image=row?await deps.image(row.candidate.uri):null;
+   if(image)return void await deps.out.photo(chatId,image,caption,keyboard);
+   return void await send(caption,keyboard);
   }
  }
 }

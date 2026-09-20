@@ -52,6 +52,15 @@ export function telegramApi(opts:{token?:string;fetch?:typeof fetch}={}):Outbox{
     });
    }
   },
+  async photo(chatId,imageUrl,caption,keyboard){
+   await call('sendPhoto',{
+    chat_id:chatId,
+    photo:imageUrl,
+    // Telegram rejects a caption over 1024 characters outright.
+    caption:caption.slice(0,1024),
+    ...(keyboard?{reply_markup:{inline_keyboard:keyboard}}:{}),
+   });
+  },
   async answer(callbackQueryId,text){
    await call('answerCallbackQuery',{callback_query_id:callbackQueryId,...(text?{text}:{})});
   },

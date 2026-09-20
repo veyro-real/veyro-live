@@ -12,6 +12,7 @@ const POSITION={
 
 function harness(app:Partial<Deps['app']>={}){
  const sent:Sent[]=[];const answered:{id:string;text?:string}[]=[];
+ const photos:{chatId:string;url:string;caption:string;keyboard?:any}[]=[];
  const store=new Map<string,unknown>();
  const calls:Record<string,unknown[]>={};
  const spy=<T extends(...a:any[])=>any>(name:string,fn:T)=>((...a:any[])=>{(calls[name]??=[]).push(a);return fn(...a);}) as T;
@@ -35,13 +36,16 @@ function harness(app:Partial<Deps['app']>={}){
   out:{
    send:async(chatId,text,keyboard)=>{sent.push({chatId,text,keyboard});},
    answer:async(id,text)=>{answered.push({id,text});},
+   photo:async(chatId,url,caption,keyboard)=>{photos.push({chatId,url,caption,keyboard});},
   },
+  image:async uri=>uri?('https://cdn.example/'+uri+'.png'):null,
   pending:{
    put:async(k,v)=>{store.set(k,v);},
    take:async(k)=>{const v=store.get(k)??null;store.delete(k);return v as any;},
   },
  };
- return {deps,sent,answered,calls,last:()=>sent[sent.length-1]};
+ return {deps,sent,answered,photos,calls,last:()=>sent[sent.length-1],
+         lastPhoto:()=>photos[photos.length-1]};
 }
 
 const message=(text:string,update_id=1)=>({update_id,message:{message_id:5,chat:{id:99},from:{id:99,username:'jeremy'},text}});
@@ -233,4 +237,67 @@ test('sell passes the update id through as the idempotency key',async()=>{
  await route(message('/sell '+POSITION.id,777),h.deps);
  assert.deepEqual(seen,['777']);
  assert.match(h.last().text,/sig-2/);
+});
+
+const SCAN_ROW={
+ candidate:{mint:MINT,symbol:'WIF',name:'dogwifhat',launchpad:'pump.fun',creator:'C',firstSeen:new Date().toISOString(),initialBuySol:2,marketCapSol:40,uri:'ipfs://QmPic'},
+ assessment:{mint:MINT,at:'',passed:true,rejections:[],score:71,features:{ageSeconds:14,holders:null,top10Pct:22,creatorLaunchCount:null,creatorGraduationCount:null,liquiditySol:31,marketCapSol:40,buyCount:null,sellCount:null,uniqueBuyers:null,mintAuthorityRevoked:true,freezeAuthorityRevoked:true}},
+ match:null,
+};
+
+test('buy on a measured token confirms with its picture and its numbers',async()=>{
+ const h=harness({explain:async()=>SCAN_ROW as any});
+ await route(message('/buy '+MINT+' 0.25'),h.deps);
+ const p=h.lastPhoto();
+ assert.ok(p,'a measured token should confirm with a photo');
+ assert.match(p.url,/cdn\.example/);
+ assert.match(p.caption,/WIF/);
+ assert.match(p.caption,/0\.25/);
+ assert.match(p.caption,/71/,'the score belongs on the confirmation');
+ assert.match(p.caption,/22/,'so does the concentration');
+ assert.ok(p.keyboard,'the keyboard is still the commit point');
+ assert.ok(p.keyboard.flat().some((b:any)=>/confirm/i.test(b.text)));
+});
+
+test('a caption never claims the token will go up',async()=>{
+ const h=harness({explain:async()=>SCAN_ROW as any});
+ await route(message('/buy '+MINT+' 0.25'),h.deps);
+ assert.doesNotMatch(h.lastPhoto().caption,/alpha|moon|pump|gem|to the|guaranteed|will go/i);
+});
+
+test('an unmeasured token says so rather than looking measured',async()=>{
+ const h=harness({explain:async()=>null});
+ await route(message('/buy '+MINT+' 0.25'),h.deps);
+ assert.equal(h.photos.length,0,'no picture we could not verify');
+ assert.match(h.last().text,/not measured|no measurement|never/i);
+ assert.ok(h.last().keyboard,'it can still be confirmed, just with eyes open');
+});
+
+test('an unreachable image falls back to text with the same facts',async()=>{
+ const h=harness({explain:async()=>SCAN_ROW as any});
+ h.deps.image=async()=>null;
+ await route(message('/buy '+MINT+' 0.25'),h.deps);
+ assert.equal(h.photos.length,0);
+ assert.match(h.last().text,/WIF/);
+ assert.match(h.last().text,/71/);
+ assert.ok(h.last().keyboard);
+});
+
+test('why shows the picture alongside what was measured',async()=>{
+ const h=harness({explain:async()=>SCAN_ROW as any});
+ await route(message('/why '+MINT),h.deps);
+ assert.ok(h.lastPhoto(),'why should be visual too');
+ assert.match(h.lastPhoto().caption,/WIF/);
+});
+
+test('confirming still buys after the photo path',async()=>{
+ const seen:string[]=[];
+ const h=harness({
+  explain:async()=>SCAN_ROW as any,
+  buy:async(_u,_m,_s,key)=>{seen.push(key);return {position:POSITION as any,result:{ok:true,signature:'sig-1',outAmount:'1000'}};},
+ });
+ await route(message('/buy '+MINT+' 0.25'),h.deps);
+ const confirm=h.lastPhoto().keyboard.flat().find((b:any)=>/confirm/i.test(b.text));
+ await route(callback(confirm.callback_data,5150),h.deps);
+ assert.deepEqual(seen,['5150']);
 });

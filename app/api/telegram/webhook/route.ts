@@ -6,6 +6,7 @@
 
 import * as app from '../../../../lib/app';
 import {claimTelegramUpdate} from '../../../../lib/db';
+import {resolveImage} from '../../../../lib/market/metadata';
 import {telegramApi} from '../../../../lib/telegram/api';
 import {pendingStore} from '../../../../lib/telegram/pending';
 import {route} from '../../../../lib/telegram/router';
@@ -19,6 +20,6 @@ export async function POST(req:Request):Promise<Response>{
  return handleUpdate(req,{
   secret:process.env.TELEGRAM_WEBHOOK_SECRET??'',
   claimUpdate:claimTelegramUpdate,
-  route:update=>route(update,{app,out,pending}),
+  route:update=>route(update,{app,out,pending,image:uri=>resolveImage(uri)}),
  });
 }

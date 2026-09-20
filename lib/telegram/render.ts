@@ -112,3 +112,46 @@ export function why(row:ScanRow|null,mint:string):string{
   measured.length?('Measured:\n'+measured.join('\n')):'',
  ].filter(Boolean).join('\n');
 }
+
+/**
+ * The buy confirmation. Every line is something that was measured, or a
+ * plain statement that it was not. Nothing here forecasts a price, because
+ * the filter measures disqualifiers and has no opinion about what goes up.
+ */
+export function confirm(mint:string,solAmount:number,row:ScanRow|null):string{
+ const head='Buy '+solAmount+' SOL';
+ const tail='Real funds, and it cannot be undone.';
+ if(!row){
+  return [
+   head+' of',
+   mint,
+   '',
+   'I have no measurement for this token. It was never assessed here, so '+
+   'nothing below the filter has checked it.',
+   '',
+   tail,
+  ].join('\n');
+ }
+ const a=row.assessment,f=a.features;
+ const facts=[
+  'score '+a.score,
+  f.top10Pct===null?null:('float top-10 '+f.top10Pct+'%'),
+  f.liquiditySol===null?null:('liquidity '+f.liquiditySol+' SOL'),
+ ].filter(Boolean).join(' · ');
+ const authorities=[
+  f.mintAuthorityRevoked===true?'mint authority revoked':'mint authority NOT revoked',
+  f.freezeAuthorityRevoked===true?'freeze revoked':'freeze NOT revoked',
+ ].join(' · ');
+ return [
+  row.candidate.symbol+' · '+row.candidate.name,
+  head,
+  '',
+  facts,
+  authorities,
+  'first seen '+f.ageSeconds+'s ago',
+  '',
+  mint,
+  '',
+  tail,
+ ].join('\n');
+}
