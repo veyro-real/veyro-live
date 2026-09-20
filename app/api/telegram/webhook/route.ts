@@ -9,7 +9,9 @@ import {claimTelegramUpdate} from '../../../../lib/db';
 import {resolveImage} from '../../../../lib/market/metadata';
 import {setVoiceEnabled,voiceEnabled} from '../../../../lib/voice/prefs';
 import {speaker} from '../../../../lib/voice/tts';
-import {telegramApi} from '../../../../lib/telegram/api';
+import {transcriber} from '../../../../lib/voice/transcribe';
+import {actionStore} from '../../../../lib/voice/actions';
+import {telegramApi,telegramFiles} from '../../../../lib/telegram/api';
 import {pendingStore} from '../../../../lib/telegram/pending';
 import {route} from '../../../../lib/telegram/router';
 import {handleUpdate} from '../../../../lib/telegram/webhook';
@@ -21,13 +23,23 @@ export async function POST(req:Request):Promise<Response>{
  const pending=pendingStore();
  // Silent on hosts with no synthesiser; the bot just skips the audio.
  const tts=speaker();
+ const stt=transcriber();
+ const files=telegramFiles();
  return handleUpdate(req,{
   secret:process.env.TELEGRAM_WEBHOOK_SECRET??'',
   claimUpdate:claimTelegramUpdate,
   route:update=>route(update,{
    app,out,pending,
    image:uri=>resolveImage(uri),
-   voice:{enabled:voiceEnabled,setEnabled:setVoiceEnabled,say:text=>tts.synthesize(text)},
+   voice:{
+    enabled:voiceEnabled,setEnabled:setVoiceEnabled,
+    say:text=>tts.synthesize(text),
+    hear:async fileId=>{
+     const ogg=await files.fetchFile(fileId);
+     return ogg?stt.transcribe(ogg):null;
+    },
+   },
+   pendingAction:actionStore(),
   }),
  });
 }

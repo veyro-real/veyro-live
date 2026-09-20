@@ -1,0 +1,78 @@
+// Turning a Telegram voice note into text.
+//
+// Telegram delivers OGG/Opus; whisper.cpp wants 16 kHz mono PCM, so ffmpeg
+// sits between them. The model is a local ggml file, which means this works
+// on a machine that has one and NOT in the Linux container on Railway unless
+// the model ships with the image. available() says which, so the bot can
+// answer "I cannot hear voice notes here" instead of silently ignoring them.
+//
+// Swapping in a hosted transcriber means implementing Transcriber and
+// nothing else.
+
+import {execFile} from 'node:child_process';
+import {mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {promisify} from 'node:util';
+
+const run=promisify(execFile);
+
+export type Transcriber={
+ available():Promise<boolean>;
+ /** Plain text, or null when there is nothing to hear or no way to hear it. */
+ transcribe(ogg:Buffer):Promise<string|null>;
+};
+
+const DEAF:Transcriber={available:async()=>false,transcribe:async()=>null};
+
+const DEFAULT_MODEL='/Users/jeremy/Library/Application Support/ru.starmel.OpenSuperWhisper/whisper-models/ggml-large-v3-turbo.bin';
+
+export function whisperTranscriber(opts:{bin?:string;model?:string;ffmpegBin?:string}={}):Transcriber{
+ const bin=opts.bin??process.env.VEYRO_WHISPER_BIN??'whisper-cli';
+ const model=opts.model??process.env.VEYRO_WHISPER_MODEL??DEFAULT_MODEL;
+ const ffmpeg=opts.ffmpegBin??'ffmpeg';
+
+ async function available():Promise<boolean>{
+  try{
+   await run(ffmpeg,['-version'],{timeout:5000});
+   // -h exits non-zero on some builds, so a model read is the real check.
+   await readFile(model,{flag:'r'}).catch(()=>{throw Error('no model');});
+   await run(bin,['--help'],{timeout:10_000}).catch(()=>{});
+   return true;
+  }catch{
+   return false;
+  }
+ }
+
+ return {
+  available,
+  async transcribe(ogg){
+   if(ogg.length===0)return null;
+   if(!await available())return null;
+   let dir:string|undefined;
+   try{
+    dir=await mkdtemp(join(tmpdir(),'veyro-stt-'));
+    const src=join(dir,'in.ogg'),wav=join(dir,'in.wav');
+    await writeFile(src,ogg);
+    await run(ffmpeg,[
+     '-y','-hide_banner','-loglevel','error','-i',src,
+     '-ar','16000','-ac','1','-c:a','pcm_s16le',wav,
+    ],{timeout:30_000});
+    const {stdout}=await run(bin,
+     ['-m',model,'-f',wav,'-nt','-np','-l','en'],
+     {timeout:120_000,maxBuffer:4*1024*1024});
+    const text=stdout.replace(/\s+/g,' ').trim();
+    return text||null;
+   }catch{
+    return null; // Unreadable audio. The router tells the user it could not hear.
+   }finally{
+    if(dir)await rm(dir,{recursive:true,force:true}).catch(()=>{});
+   }
+  },
+ };
+}
+
+export function transcriber():Transcriber{
+ if(process.env.VEYRO_VOICE_DISABLED==='true')return DEAF;
+ return whisperTranscriber();
+}

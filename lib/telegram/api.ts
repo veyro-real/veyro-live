@@ -85,3 +85,34 @@ export function telegramApi(opts:{token?:string;fetch?:typeof fetch}={}):Outbox{
   },
  };
 }
+
+/**
+ * Fetching a file the user sent. Two hops: getFile resolves a file_id to a
+ * path, then the file endpoint serves the bytes. Null on any failure, since
+ * an unreadable voice note is something the bot reports, not something it
+ * crashes on.
+ */
+export function telegramFiles(opts:{token?:string;fetch?:typeof fetch}={}){
+ const http=opts.fetch??fetch;
+ const token=()=>{
+  const t=opts.token??process.env.TELEGRAM_BOT_TOKEN??'';
+  if(!t)throw Error('TELEGRAM_NOT_CONFIGURED');
+  return t;
+ };
+ return {
+  async fetchFile(fileId:string):Promise<Buffer|null>{
+   try{
+    const meta=await http('https://api.telegram.org/bot'+token()+'/getFile?file_id='+encodeURIComponent(fileId));
+    if(!meta.ok)return null;
+    const body=await meta.json() as {ok:boolean;result?:{file_path?:string}};
+    const path=body.result?.file_path;
+    if(!body.ok||!path)return null;
+    const file=await http('https://api.telegram.org/file/bot'+token()+'/'+path);
+    if(!file.ok)return null;
+    return Buffer.from(await file.arrayBuffer());
+   }catch{
+    return null;
+   }
+  },
+ };
+}

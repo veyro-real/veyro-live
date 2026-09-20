@@ -156,3 +156,17 @@ export function confirm(mint:string,solAmount:number,row:ScanRow|null):string{
   tail,
  ].join('\n');
 }
+
+/** What a spoken instruction was understood to mean, for the confirmation. */
+export function describeIntent(intent:{kind:string;[k:string]:any}):string{
+ switch(intent.kind){
+  case 'limits':return intent.set
+   ? 'Set your limits to '+intent.set.maxTradeSol+' SOL per trade, '+
+     intent.set.dailyCapSol+' SOL a day, for '+intent.set.hours+' hours.'
+   : 'Show your limits.';
+  case 'revoke':return 'Revoke all spending immediately.';
+  case 'edge':return intent.text?('Replace your strategy with: '+intent.text):'Show your strategy.';
+  case 'voice':return intent.on?'Turn voice notes on.':'Turn voice notes off.';
+  default:return 'Run '+intent.kind+'.';
+ }
+}

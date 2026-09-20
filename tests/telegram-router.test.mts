@@ -14,6 +14,7 @@ function harness(app:Partial<Deps['app']>={}){
  const sent:Sent[]=[];const answered:{id:string;text?:string}[]=[];
  const photos:{chatId:string;url:string;caption:string;keyboard?:any}[]=[];
  const voices:Buffer[]=[];let voiceOn=false;
+ const actionStore=new Map<string,unknown>();let heard:string|null=null;
  const store=new Map<string,unknown>();
  const calls:Record<string,unknown[]>={};
  const spy=<T extends(...a:any[])=>any>(name:string,fn:T)=>((...a:any[])=>{(calls[name]??=[]).push(a);return fn(...a);}) as T;
@@ -45,13 +46,20 @@ function harness(app:Partial<Deps['app']>={}){
    enabled:async()=>voiceOn,
    setEnabled:async(_u,on)=>{voiceOn=on;},
    say:async()=>Buffer.from('OggS fake'),
+   hear:async()=>heard,
+  },
+  pendingAction:{
+   put:async(k,v)=>{actionStore.set(k,v);},
+   take:async(k)=>{const v=actionStore.get(k)??null;actionStore.delete(k);return v as any;},
+   clear:async(u)=>{for(const [k,v] of actionStore)if((v as any).userId===u)actionStore.delete(k);},
   },
   pending:{
    put:async(k,v)=>{store.set(k,v);},
    take:async(k)=>{const v=store.get(k)??null;store.delete(k);return v as any;},
   },
  };
-  return {deps,sent,answered,photos,voices,calls,last:()=>sent[sent.length-1],
+  return {deps,sent,answered,photos,voices,calls,
+         setHeard:(t:string|null)=>{heard=t;},actionStore,last:()=>sent[sent.length-1],
          lastPhoto:()=>photos[photos.length-1]};
 }
 
@@ -349,4 +357,88 @@ test('voice never replaces the written confirmation',async()=>{
  await route(message('/buy '+MINT+' 0.25'),h.deps);
  assert.match(h.lastPhoto().caption,/71/,'the numbers stay readable');
  assert.ok(h.lastPhoto().keyboard,'the keyboard is still the commit point');
+});
+
+const voiceNote=(update_id=3000)=>({update_id,message:{message_id:9,chat:{id:99},from:{id:99,username:'jeremy'},voice:{file_id:'AwACAgQ',duration:3}}});
+
+test('a voice note is transcribed and echoed back before anything happens',async()=>{
+ const h=harness();h.setHeard('set my limits to 0.5 sol per trade 2 sol daily for 24 hours');
+ let wrote=false;
+ h.deps.app.setLimits=(async()=>{wrote=true;throw Error('should not run');}) as any;
+ await route(voiceNote(),h.deps);
+ assert.match(h.last().text,/I heard/i);
+ assert.match(h.last().text,/0\.5/,'the transcript itself must be visible');
+ assert.equal(wrote,false,'nothing acts before confirmation');
+ assert.ok(h.last().keyboard,'confirmation is required');
+});
+
+test('confirming a voice note runs the interpreted command',async()=>{
+ const h=harness();h.setHeard('set my limits to 0.5 sol per trade 2 sol daily for 24 hours');
+ const seen:unknown[]=[];
+ h.deps.app.setLimits=(async(_u:string,input:unknown)=>{seen.push(input);return {userId:'u-1',maxTradeLamports:500000000n,dailyCapLamports:2000000000n,expiresAt:1789000000,active:true,policyAddress:null,agentPubkey:null};}) as any;
+ await route(voiceNote(),h.deps);
+ const ok=h.last().keyboard!.flat().find(b=>/confirm|yes/i.test(b.text))!;
+ await route(callback(ok.callback_data,3001),h.deps);
+ assert.deepEqual(seen,[{maxTradeSol:0.5,dailyCapSol:2,hours:24}]);
+});
+
+test('cancelling a voice note does nothing at all',async()=>{
+ const h=harness();h.setHeard('stop everything');
+ let revoked=false;
+ h.deps.app.revokeLimits=(async()=>{revoked=true;}) as any;
+ await route(voiceNote(),h.deps);
+ const no=h.last().keyboard!.flat().find(b=>/cancel|no/i.test(b.text))!;
+ await route(callback(no.callback_data,3002),h.deps);
+ assert.equal(revoked,false);
+ assert.match(h.last().text,/cancel/i);
+});
+
+test('speaking again replaces the pending action instead of stacking',async()=>{
+ const h=harness();h.setHeard('stop everything');
+ await route(voiceNote(3010),h.deps);
+ h.setHeard('set my limits to 1 sol per trade 5 sol daily for 12 hours');
+ await route(voiceNote(3011),h.deps);
+ const live=[...h.actionStore.values()];
+ assert.equal(live.length,1,'an amended instruction supersedes the old one');
+});
+
+test('a read only ask answers directly, no confirmation theatre',async()=>{
+ const h=harness();h.setHeard('show me my wallet');
+ await route(voiceNote(3020),h.deps);
+ assert.match(h.sent.map(s=>s.text).join('\n'),/Wa11et/,'it just answers');
+});
+
+test('speech it cannot interpret says what it heard and stops',async()=>{
+ const h=harness();h.setHeard('what do you think about the market');
+ await route(voiceNote(3030),h.deps);
+ assert.match(h.last().text,/I heard/i);
+ assert.match(h.last().text,/did not understand|didn't understand|not sure/i);
+ assert.equal(h.last().keyboard,undefined,'nothing to confirm');
+});
+
+test('audio it cannot hear says so rather than going quiet',async()=>{
+ const h=harness();h.setHeard(null);
+ await route(voiceNote(3040),h.deps);
+ assert.match(h.last().text,/could not|couldn't|cannot/i);
+});
+
+test('a spoken buy shows the full written confirmation, not a shortcut',async()=>{
+ const h=harness({
+  explain:async()=>SCAN_ROW as any,
+  scan:async()=>[SCAN_ROW] as any,
+ });
+ h.setHeard('buy 0.05 sol of wif');
+ await route(voiceNote(3050),h.deps);
+ const shown=h.lastPhoto()?.caption??h.last().text;
+ assert.match(shown,/WIF/);
+ assert.match(shown,/0\.05/);
+ assert.ok(h.lastPhoto()?.keyboard??h.last().keyboard,'the trade still needs its own confirm');
+});
+
+test('a spoken buy for a token the feed never saw is refused',async()=>{
+ const h=harness({scan:async()=>[]});
+ h.setHeard('buy 0.05 sol of nosuchtoken');
+ await route(voiceNote(3060),h.deps);
+ assert.match(h.last().text,/not seen|no candidate|do not know|don't know/i);
+ assert.equal(h.photos.length,0);
 });

@@ -10,6 +10,8 @@ export type TelegramMessage={
  chat:TelegramChat;
  from?:TelegramFrom;
  text?:string;
+ /** A voice note. The bytes are fetched separately by file_id. */
+ voice?:{file_id:string;duration:number};
 };
 
 export type TelegramCallbackQuery={
