@@ -22,6 +22,7 @@ export type Command=
  |{kind:'buy';mint:string;sol:number}
  |{kind:'sell';positionId:string}
  |{kind:'positions';includeClosed:boolean}
+ |{kind:'voice';on:boolean|null}
  |{kind:'usage';command:string}
  |{kind:'unknown'};
 
@@ -89,6 +90,14 @@ export function parseCommand(raw:string):Command{
   }
 
   case 'positions':return {kind:'positions',includeClosed:args[0]?.toLowerCase()==='all'};
+
+  case 'voice':{
+   if(args.length===0)return {kind:'voice',on:null}; // toggle
+   const word=args[0].toLowerCase();
+   if(word==='on')return {kind:'voice',on:true};
+   if(word==='off')return {kind:'voice',on:false};
+   return usage;
+  }
 
   default:return {kind:'unknown'};
  }

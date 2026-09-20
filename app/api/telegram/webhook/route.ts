@@ -7,6 +7,8 @@
 import * as app from '../../../../lib/app';
 import {claimTelegramUpdate} from '../../../../lib/db';
 import {resolveImage} from '../../../../lib/market/metadata';
+import {setVoiceEnabled,voiceEnabled} from '../../../../lib/voice/prefs';
+import {speaker} from '../../../../lib/voice/tts';
 import {telegramApi} from '../../../../lib/telegram/api';
 import {pendingStore} from '../../../../lib/telegram/pending';
 import {route} from '../../../../lib/telegram/router';
@@ -17,9 +19,15 @@ export const runtime='nodejs';export const dynamic='force-dynamic';
 export async function POST(req:Request):Promise<Response>{
  const out=telegramApi();
  const pending=pendingStore();
+ // Silent on hosts with no synthesiser; the bot just skips the audio.
+ const tts=speaker();
  return handleUpdate(req,{
   secret:process.env.TELEGRAM_WEBHOOK_SECRET??'',
   claimUpdate:claimTelegramUpdate,
-  route:update=>route(update,{app,out,pending,image:uri=>resolveImage(uri)}),
+  route:update=>route(update,{
+   app,out,pending,
+   image:uri=>resolveImage(uri),
+   voice:{enabled:voiceEnabled,setEnabled:setVoiceEnabled,say:text=>tts.synthesize(text)},
+  }),
  });
 }

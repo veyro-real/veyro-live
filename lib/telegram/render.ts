@@ -51,6 +51,7 @@ export function help():string{
   '/buy <mint> <SOL> — buy, after you confirm',
   '/sell <position id> — close a position',
   '/positions — open positions, or /positions all',
+  '/voice — speak confirmations as well as writing them',
   '/help — this list',
  ].join('\n');
 }

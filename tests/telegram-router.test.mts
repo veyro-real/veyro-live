@@ -13,6 +13,7 @@ const POSITION={
 function harness(app:Partial<Deps['app']>={}){
  const sent:Sent[]=[];const answered:{id:string;text?:string}[]=[];
  const photos:{chatId:string;url:string;caption:string;keyboard?:any}[]=[];
+ const voices:Buffer[]=[];let voiceOn=false;
  const store=new Map<string,unknown>();
  const calls:Record<string,unknown[]>={};
  const spy=<T extends(...a:any[])=>any>(name:string,fn:T)=>((...a:any[])=>{(calls[name]??=[]).push(a);return fn(...a);}) as T;
@@ -37,14 +38,20 @@ function harness(app:Partial<Deps['app']>={}){
    send:async(chatId,text,keyboard)=>{sent.push({chatId,text,keyboard});},
    answer:async(id,text)=>{answered.push({id,text});},
    photo:async(chatId,url,caption,keyboard)=>{photos.push({chatId,url,caption,keyboard});},
+   voiceNote:async(_c,ogg)=>{voices.push(ogg);},
   },
   image:async uri=>uri?('https://cdn.example/'+uri+'.png'):null,
+  voice:{
+   enabled:async()=>voiceOn,
+   setEnabled:async(_u,on)=>{voiceOn=on;},
+   say:async()=>Buffer.from('OggS fake'),
+  },
   pending:{
    put:async(k,v)=>{store.set(k,v);},
    take:async(k)=>{const v=store.get(k)??null;store.delete(k);return v as any;},
   },
  };
- return {deps,sent,answered,photos,calls,last:()=>sent[sent.length-1],
+  return {deps,sent,answered,photos,voices,calls,last:()=>sent[sent.length-1],
          lastPhoto:()=>photos[photos.length-1]};
 }
 
@@ -300,4 +307,46 @@ test('confirming still buys after the photo path',async()=>{
  const confirm=h.lastPhoto().keyboard.flat().find((b:any)=>/confirm/i.test(b.text));
  await route(callback(confirm.callback_data,5150),h.deps);
  assert.deepEqual(seen,['5150']);
+});
+
+test('voice is off by default and toggles on',async()=>{
+ const h=harness();
+ await route(message('/voice'),h.deps);
+ assert.match(h.last().text,/on\b/i);
+ await route(message('/voice'),h.deps);
+ assert.match(h.last().text,/off\b/i);
+});
+
+test('with voice off, nothing is ever synthesised',async()=>{
+ let said=0;
+ const h=harness({explain:async()=>SCAN_ROW as any});
+ h.deps.voice.say=async()=>{said++;return Buffer.from('x');};
+ await route(message('/buy '+MINT+' 0.25'),h.deps);
+ assert.equal(said,0,'do not burn TTS on users who did not ask');
+ assert.equal(h.voices.length,0);
+});
+
+test('with voice on, a buy confirmation is also spoken',async()=>{
+ const h=harness({explain:async()=>SCAN_ROW as any});
+ await route(message('/voice on'),h.deps);
+ await route(message('/buy '+MINT+' 0.25'),h.deps);
+ assert.equal(h.voices.length,1,'expected a voice note');
+ assert.ok(h.lastPhoto(),'the text and picture still go out');
+});
+
+test('a silent host degrades to text instead of failing the command',async()=>{
+ const h=harness({explain:async()=>SCAN_ROW as any});
+ await route(message('/voice on'),h.deps);
+ h.deps.voice.say=async()=>null;
+ await route(message('/buy '+MINT+' 0.25'),h.deps);
+ assert.equal(h.voices.length,0);
+ assert.ok(h.lastPhoto(),'the confirmation must still arrive');
+});
+
+test('voice never replaces the written confirmation',async()=>{
+ const h=harness({explain:async()=>SCAN_ROW as any});
+ await route(message('/voice on'),h.deps);
+ await route(message('/buy '+MINT+' 0.25'),h.deps);
+ assert.match(h.lastPhoto().caption,/71/,'the numbers stay readable');
+ assert.ok(h.lastPhoto().keyboard,'the keyboard is still the commit point');
 });

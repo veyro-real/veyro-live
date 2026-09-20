@@ -69,3 +69,16 @@ test('answering a callback query stops the spinner',async()=>{
 test('a missing bot token is a configuration error, not a silent no-op',async()=>{
  await assert.rejects(()=>telegramApi({token:'',fetch:fakeFetch().fn}).send('99','hi'),/TELEGRAM_NOT_CONFIGURED/);
 });
+
+test('a voice note is uploaded as multipart, not a url',async()=>{
+ const calls:{url:string;body:any}[]=[];
+ const fn=(async(url:string,init:RequestInit)=>{
+  calls.push({url:String(url),body:init.body});
+  return new Response(JSON.stringify({ok:true,result:{}}),{status:200,headers:{'content-type':'application/json'}});
+ }) as unknown as typeof fetch;
+ await telegramApi({token:'t',fetch:fn}).voiceNote('99',Buffer.from('OggS fake audio bytes'));
+ assert.equal(calls[0].url,'https://api.telegram.org/bott/sendVoice');
+ assert.ok(calls[0].body instanceof FormData,'voice bytes must be uploaded, not linked');
+ assert.equal(calls[0].body.get('chat_id'),'99');
+ assert.ok(calls[0].body.get('voice'),'the audio must be attached');
+});

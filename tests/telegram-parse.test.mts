@@ -79,3 +79,10 @@ test('sell needs a position id',()=>{
  assert.equal(parseCommand('/sell').kind,'usage');
  assert.equal(parseCommand('/sell 123').kind,'usage');
 });
+
+test('voice toggles, and can be set explicitly',()=>{
+ assert.deepEqual(parseCommand('/voice'),{kind:'voice',on:null});
+ assert.deepEqual(parseCommand('/voice on'),{kind:'voice',on:true});
+ assert.deepEqual(parseCommand('/voice off'),{kind:'voice',on:false});
+ assert.equal(parseCommand('/voice maybe').kind,'usage');
+});

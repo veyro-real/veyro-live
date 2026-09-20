@@ -25,17 +25,29 @@ export function chunk(text:string,limit=LIMIT):string[]{
 export function telegramApi(opts:{token?:string;fetch?:typeof fetch}={}):Outbox{
  const http=opts.fetch??fetch;
 
- async function call(method:string,payload:Record<string,unknown>):Promise<void>{
+ function endpoint(method:string):string{
   const token=opts.token??process.env.TELEGRAM_BOT_TOKEN??'';
   if(!token)throw Error('TELEGRAM_NOT_CONFIGURED');
-  const res=await http('https://api.telegram.org/bot'+token+'/'+method,{
-   method:'POST',
-   headers:{'content-type':'application/json'},
-   body:JSON.stringify(payload),
-  });
+  return 'https://api.telegram.org/bot'+token+'/'+method;
+ }
+
+ async function check(res:Response):Promise<void>{
   if(!res.ok)throw Error('TELEGRAM_HTTP_'+res.status);
   const body=await res.json() as {ok:boolean;description?:string};
   if(!body.ok)throw Error('TELEGRAM_API: '+(body.description??'unknown'));
+ }
+
+ async function upload(method:string,form:FormData):Promise<void>{
+  // No content-type header: fetch sets the multipart boundary itself.
+  await check(await http(endpoint(method),{method:'POST',body:form}));
+ }
+
+ async function call(method:string,payload:Record<string,unknown>):Promise<void>{
+  await check(await http(endpoint(method),{
+   method:'POST',
+   headers:{'content-type':'application/json'},
+   body:JSON.stringify(payload),
+  }));
  }
 
  return {
@@ -60,6 +72,13 @@ export function telegramApi(opts:{token?:string;fetch?:typeof fetch}={}):Outbox{
     caption:caption.slice(0,1024),
     ...(keyboard?{reply_markup:{inline_keyboard:keyboard}}:{}),
    });
+  },
+  async voiceNote(chatId,ogg){
+   // Audio is bytes we produced, so it is uploaded rather than linked.
+   const form=new FormData();
+   form.append('chat_id',chatId);
+   form.append('voice',new Blob([new Uint8Array(ogg)],{type:'audio/ogg'}),'voice.ogg');
+   await upload('sendVoice',form);
   },
   async answer(callbackQueryId,text){
    await call('answerCallbackQuery',{callback_query_id:callbackQueryId,...(text?{text}:{})});

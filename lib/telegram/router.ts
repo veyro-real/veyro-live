@@ -15,6 +15,7 @@ import type * as app from '../app';
 import type {InlineKeyboard,TelegramUpdate} from './types';
 import {parseCommand} from './parse';
 import * as render from './render';
+import {spokenConfirm} from '../voice/speech';
 
 /** The part of lib/app the Telegram channel is allowed to call. */
 export type AppSurface=Pick<typeof app,
@@ -29,6 +30,8 @@ export type Outbox={
  answer(callbackQueryId:string,text?:string):Promise<void>;
  /** Telegram fetches the url itself; we never download the bytes. */
  photo(chatId:string,imageUrl:string,caption:string,keyboard?:InlineKeyboard):Promise<void>;
+ /** OGG/Opus bytes, uploaded as a Telegram voice note. */
+ voiceNote(chatId:string,ogg:Buffer):Promise<void>;
 };
 
 /** A buy the user has been shown but has not yet confirmed. */
@@ -46,6 +49,12 @@ export type Deps={
  pending:PendingStore;
  /** Token metadata uri to a displayable image url, or null. */
  image(uri:string|null):Promise<string|null>;
+ voice:{
+  enabled(userId:string):Promise<boolean>;
+  setEnabled(userId:string,on:boolean):Promise<void>;
+  /** OGG/Opus bytes, or null when this host cannot synthesise. */
+  say(text:string):Promise<Buffer|null>;
+ };
 };
 
 const CONFIRM='b:',CANCEL='x:';
@@ -116,6 +125,13 @@ async function onMessage(update:TelegramUpdate,deps:Deps):Promise<void>{
    const s=await deps.app.setStrategy(user.id,command.text);
    return void await send('Strategy saved as version '+s.version+'.\n\n'+s.rawText);
   }
+  case 'voice':{
+   const on=command.on??!await deps.voice.enabled(user.id);
+   await deps.voice.setEnabled(user.id,on);
+   return void await send(on
+    ?'Voice notes on. I will speak confirmations as well as writing them.'
+    :'Voice notes off.');
+  }
   case 'scan':return void await send(render.scan(await deps.app.scan(user.id,command.limit)));
   case 'why':{
    const row=await deps.app.explain(command.mint);
@@ -147,8 +163,16 @@ async function onMessage(update:TelegramUpdate,deps:Deps):Promise<void>{
    const row=await deps.app.explain(command.mint);
    const caption=render.confirm(command.mint,command.sol,row);
    const image=row?await deps.image(row.candidate.uri):null;
-   if(image)return void await deps.out.photo(chatId,image,caption,keyboard);
-   return void await send(caption,keyboard);
+   if(image)await deps.out.photo(chatId,image,caption,keyboard);
+   else await send(caption,keyboard);
+
+   // Spoken afterwards, never instead. The written confirmation and its
+   // keyboard are the commit point; audio is an extra.
+   if(await deps.voice.enabled(user.id)){
+    const ogg=await deps.voice.say(spokenConfirm(command.sol,row,command.mint));
+    if(ogg)await deps.out.voiceNote(chatId,ogg);
+   }
+   return;
   }
  }
 }
