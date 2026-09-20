@@ -231,3 +231,13 @@ const rowToStrategy=(r:any):Strategy=>({
  id:r.id,userId:r.user_id,version:r.version,rawText:r.raw_text,
  compiled:r.compiled,active:r.active,createdAt:r.created_at,
 });
+
+// ---------------------------------------------------------------- telegram
+
+/** True the first time an update_id is seen, false on redelivery. Telegram
+ *  retries a webhook it thinks failed, and a redelivered /buy must not open a
+ *  second position. */
+export async function claimTelegramUpdate(updateId:number):Promise<boolean>{
+ const {data,error}=await db().rpc('veyro_claim_telegram_update',{p_update_id:updateId});
+ return ok(data,error,'CLAIM_TELEGRAM_UPDATE') as boolean;
+}
