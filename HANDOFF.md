@@ -32,26 +32,29 @@ npx tsc --noEmit    # lib/ is clean; app/ JSX errors are pre-existing
 | `lib/wallet/custody.ts` | Per-user `Keypair`, AES-256-GCM encrypted into `veyro_secrets`. Never on disk, never logged. |
 | `lib/trade/jupiter.ts` | Quote, build, sign, simulate, send. Verified live against `lite-api.jup.ag/swap/v1/*`. |
 | `lib/trade/execute.ts` | `buy`, `sell`, `reconcile`, `headroom`. The money path. |
+| `lib/telegram/parse.ts` | Text to a typed `Command`. Pure. |
+| `lib/telegram/render.ts` | Reply text. Pure. Holds the custody disclosure. |
+| `lib/telegram/router.ts` | Dispatch. Calls `lib/app` only, deps injected. |
+| `lib/telegram/api.ts` | Bot API client. Chunks past 4096 chars. |
+| `lib/telegram/pending.ts` | Unconfirmed buys, consumed atomically. |
+| `lib/telegram/webhook.ts` | Secret check and `update_id` dedupe. |
+| `app/api/telegram/webhook/route.ts` | Wiring only; no decisions live here. |
 | `AGENTS.md` | Rewritten to permit mainnet spending with named constraints. |
 
 ## Not done
 
-1. **Telegram channel layer.** Nothing exists. `app/api/telegram/webhook/route.ts`,
-   `lib/telegram/*`. Commands: `/start /connect /wallet /limits /revoke /edge
-   /scan /why /buy /sell /positions /help`. An inline-keyboard confirmation is
-   the commit point for any `/buy`.
-2. **X OAuth 2.0 PKCE.** `app/api/oauth/x/**`. `linkX()` is the stub.
-3. **Market feed.** `lib/market/*`, `worker/*`. PumpPortal at
+1. **X OAuth 2.0 PKCE.** `app/api/oauth/x/**`. `linkX()` is the stub.
+2. **Market feed.** `lib/market/*`, `worker/*`. PumpPortal at
    `wss://pumpportal.fun/api/data` is free: `subscribeNewToken`,
    `subscribeMigration`. Needs its own Railway process; Next.js cannot hold a
    socket open.
-4. **Rejection filter and scoring.** `lib/market/filter.ts` producing
+3. **Rejection filter and scoring.** `lib/market/filter.ts` producing
    `Assessment`. The `RejectReason` union in `lib/types.ts` is the list to
    implement.
-5. **Strategy compiler.** `lib/strategy/*`. Plain English to
+4. **Strategy compiler.** `lib/strategy/*`. Plain English to
    `CompiledStrategy`, stored versioned via `writeStrategy()`.
-6. **`lib/app.ts` bodies.**
-7. **On-chain gate.** Program `2Z7xH99Z4YvG4U2Ew5PUZtVh8FE1VRhQ1Mo9dFvRvS3Q`
+5. **`lib/app.ts` bodies.** The channel layer calls these and they all throw.
+6. **On-chain gate.** Program `2Z7xH99Z4YvG4U2Ew5PUZtVh8FE1VRhQ1Mo9dFvRvS3Q`
    dispatches on a single byte (`CREATE_POLICY=1`, `REVOKE_POLICY=2`,
    `CHECK_SPEND=3`) over a hand-packed 154-byte policy account. The vendored
    `@veyro/sdk` only speaks Anchor discriminators, so no client exists. Source:
@@ -69,11 +72,31 @@ daily headroom is recoverable; double-spending it is not.
 checks in TypeScript, and never spend against a reservation you did not
 receive.
 
-**`validateOrigin()` in `lib/auth.ts` will reject Telegram.** Do not apply it to
-the webhook route. Verify `X-Telegram-Bot-Api-Secret-Token` with a timing-safe
-compare instead, and dedupe on `update_id` via `veyro_claim_telegram_update()`.
-Telegram retries webhooks, and a redelivered `/buy` must not open a second
-position.
+**`validateOrigin()` in `lib/auth.ts` will reject Telegram.** Done, and it
+stays done: `lib/telegram/webhook.ts` does not import it, verifies
+`X-Telegram-Bot-Api-Secret-Token` against a SHA-256 digest with
+`timingSafeEqual`, and claims `update_id` via `veyro_claim_telegram_update()`
+before anything is routed. Two taps on one keyboard are a separate problem
+from a redelivered webhook, and `lib/telegram/pending.ts` is what stops those:
+the confirmation record is consumed through `veyro_claim_request`, so only one
+tap ever reaches `app.buy`.
+
+## Registering the webhook
+
+Nothing reaches the bot until Telegram is told where to send updates. Once
+`TELEGRAM_BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` are set and the app is
+deployed:
+
+```
+curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
+  -H 'content-type: application/json' \
+  -d "{\"url\":\"$VEYRO_APP_ORIGIN/api/telegram/webhook\",
+       \"secret_token\":\"$TELEGRAM_WEBHOOK_SECRET\",
+       \"allowed_updates\":[\"message\",\"callback_query\"]}"
+```
+
+`getWebhookInfo` reports the last delivery error, which is the first place to
+look when the bot goes quiet.
 
 ## Blocked on Jeremy
 
