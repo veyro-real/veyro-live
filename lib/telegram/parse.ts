@@ -24,6 +24,7 @@ export type Command=
  |{kind:'positions';includeClosed:boolean}
  |{kind:'voice';on:boolean|null}
  |{kind:'chatid'}
+ |{kind:'trending';limit:number}
  |{kind:'usage';command:string}
  |{kind:'unknown'};
 
@@ -67,6 +68,13 @@ export function parseCommand(raw:string):Command{
   }
 
   case 'edge':return {kind:'edge',text:rest===''?null:rest};
+
+  case 'trending':{
+   if(args.length===0)return {kind:'trending',limit:5};
+   const n=Number(args[0]);
+   if(!Number.isFinite(n))return usage;
+   return {kind:'trending',limit:clamp(Math.trunc(n),1,10)};
+  }
 
   case 'scan':{
    if(args.length===0)return {kind:'scan',limit:10};

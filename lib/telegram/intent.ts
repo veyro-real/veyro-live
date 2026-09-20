@@ -12,7 +12,9 @@
 
 import {parseCommand,type Command} from './parse';
 
-export type Intent=Command|{kind:'buyBySymbol';symbol:string;sol:number};
+export type Intent=Command
+ |{kind:'buyBySymbol';symbol:string;sol:number}
+ |{kind:'buyTrending';sol:number};
 
 /** Whisper reliably hears SOL as "sold", "soul" or "sole". */
 const normalise=(raw:string):string=>raw
@@ -64,6 +66,11 @@ export function intentFromSpeech(raw:string):Intent|null{
  if(edge)return {kind:'edge',text:edge[1].trim()};
 
  if(/\bbuy\b/.test(t)){
+  const amount=num(t.match(/buy\s+([\d.]+)\s*sol/)?.[1]);
+  // "the dumbest memecoin", "whatever is trending": no symbol, just a pick.
+  if(/dumbest|trending|whatever is hot|top meme/.test(t)){
+   return amount===null?null:{kind:'buyTrending',sol:amount};
+  }
   const m=t.match(/buy\s+([\d.]+)\s*sol\s+(?:of\s+|worth of\s+)?([a-z0-9]{2,15})\b/);
   const sol=num(m?.[1]);
   if(!m||sol===null)return null; // No amount, no trade.
@@ -75,6 +82,7 @@ export function intentFromSpeech(raw:string):Intent|null{
 
  if(/\bwallet\b|deposit address|my address/.test(t))return {kind:'wallet'};
  if(/\bpositions?\b|what am i holding|what do i hold|my bags/.test(t))return {kind:'positions',includeClosed:false};
+ if(/\btrending\b|what is hot|whats hot/.test(t))return {kind:'trending',limit:5};
  if(/\bscan\b|what passed|passed the filter|any candidates/.test(t))return {kind:'scan',limit:10};
  if(/\bedge\b|my strategy\b/.test(t))return {kind:'edge',text:null};
  if(/^help$|\bwhat can you do\b|list (your )?commands/.test(t))return {kind:'help'};

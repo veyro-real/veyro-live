@@ -33,6 +33,7 @@ function harness(app:Partial<Deps['app']>={}){
    sell:async()=>({position:POSITION as any,result:{ok:true,signature:'sig-2',outAmount:'9'}}),
    positions:async()=>[],
    reconcilePositions:async()=>[],
+   trending:async()=>TRENDING,
    ...app,
   } as Deps['app'],
   out:{
@@ -441,4 +442,56 @@ test('a spoken buy for a token the feed never saw is refused',async()=>{
  await route(voiceNote(3060),h.deps);
  assert.match(h.last().text,/not seen|no candidate|do not know|don't know/i);
  assert.equal(h.photos.length,0);
+});
+
+const TRENDING=[{
+ mint:MINT,symbol:'JEANJAK',name:'Jean Wojak',description:'internet-culture meme legend reborn',
+ boost:500,liquiditySol:775.4,marketCapUsd:3394609,buys5m:827,sells5m:355,
+ ageSeconds:25620,uri:'https://cdn.example/j.png',
+}];
+
+test('trending lists what is loud, with the numbers behind it',async()=>{
+ const h=harness();
+ await route(message('/trending'),h.deps);
+ const t=h.last().text;
+ assert.match(t,/JEANJAK/);
+ assert.match(t,/827/,'trade counts are the point');
+ assert.ok(t.includes(MINT),'the mint must be copyable for /buy');
+});
+
+test('trending says plainly that a boost is paid placement',async()=>{
+ const h=harness();
+ await route(message('/trending'),h.deps);
+ assert.match(h.last().text,/paid|promot|placement/i,
+  'presenting a paid boost as organic interest would be a lie');
+});
+
+test('an empty trending list says so',async()=>{
+ const h=harness({trending:async()=>[]});
+ await route(message('/trending'),h.deps);
+ assert.match(h.last().text,/nothing|none|no trending/i);
+});
+
+test('buying the trending one resolves it and uses the normal confirmation',async()=>{
+ const h=harness({explain:async()=>SCAN_ROW as any});
+ h.setHeard('buy 0.05 sol of the dumbest memecoin on x');
+ await route(voiceNote(4100),h.deps);
+ const shown=h.lastPhoto()?.caption??h.last().text;
+ assert.match(shown,/0\.05/);
+ assert.ok(h.lastPhoto()?.keyboard??h.last().keyboard,'it still needs confirming');
+});
+
+test('buying the trending one when nothing is trending is refused',async()=>{
+ const h=harness({trending:async()=>[]});
+ h.setHeard('buy 0.05 sol of the dumbest memecoin');
+ await route(voiceNote(4101),h.deps);
+ assert.match(h.last().text,/nothing|none|no trending/i);
+ assert.equal(h.photos.length,0);
+});
+
+test('the transcript is echoed before a trending buy, like any other',async()=>{
+ const h=harness({explain:async()=>SCAN_ROW as any});
+ h.setHeard('buy 0.05 sol of whatever is trending');
+ await route(voiceNote(4102),h.deps);
+ assert.match(h.sent.map(x=>x.text).join('\n'),/I heard/i);
 });

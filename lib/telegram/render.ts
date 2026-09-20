@@ -5,7 +5,7 @@
 // user in plain language that the service holds their keys.
 
 import type {Limits,Position} from '../types';
-import type {ScanRow} from '../app';
+import type {ScanRow,TrendingRow} from '../app';
 
 /** Lamports as SOL, exact, with no trailing zeros. Never rounded for display. */
 export function sol(lamports:bigint|string):string{
@@ -46,6 +46,7 @@ export function help():string{
   '/limits — show limits, or /limits <max trade SOL> <daily cap SOL> <hours>',
   '/revoke — switch off all spending now',
   '/edge — show your strategy, or /edge <plain English>',
+  '/trending — what is loud right now, from paid DexScreener placements',
   '/scan — candidates that passed the filter',
   '/why <mint> — what was measured and what was rejected',
   '/buy <mint> <SOL> — buy, after you confirm',
@@ -169,4 +170,34 @@ export function describeIntent(intent:{kind:string;[k:string]:any}):string{
   case 'voice':return intent.on?'Turn voice notes on.':'Turn voice notes off.';
   default:return 'Run '+intent.kind+'.';
  }
+}
+
+/**
+ * What is loud right now. Every line is a measurement, and the footer is not
+ * decoration: a boost is a paid placement, and letting that read as organic
+ * interest would be the same lie as calling the launch feed alpha.
+ */
+export function trending(rows:TrendingRow[]):string{
+ if(rows.length===0)return 'Nothing trending right now. Try again shortly.';
+ const body=rows.map(r=>{
+  const age=r.ageSeconds<3600
+   ? Math.round(r.ageSeconds/60)+'m old'
+   : Math.round(r.ageSeconds/3600)+'h old';
+  const flow=r.buys5m===null||r.sells5m===null
+   ? null
+   : ('5m trades '+r.buys5m+' buys / '+r.sells5m+' sells');
+  return [
+   r.symbol+' — '+r.name,
+   '  '+r.mint,
+   '  '+[age,
+        r.liquiditySol===null?null:('liquidity '+Math.round(r.liquiditySol)+' SOL'),
+        r.marketCapUsd===null?null:('mcap $'+r.marketCapUsd.toLocaleString('en-US')),
+       ].filter(Boolean).join(' · '),
+   flow?('  '+flow):'',
+   r.description?('  '+r.description.slice(0,90)):'',
+  ].filter(Boolean).join('\n');
+ }).join('\n\n');
+ return body+'\n\nThese are paid promotions on DexScreener, ranked by what the '+
+  'promoter spent. That is a budget, not interest, and none of it has been '+
+  'through the rejection filter. Buy with /buy <mint> <SOL>.';
 }

@@ -66,3 +66,26 @@ test('an explicit slash command spoken aloud still works',()=>{
  assert.equal(k('slash wallet'),'wallet');
  assert.equal(k('/wallet'),'wallet');
 });
+
+test('asking what is trending maps to trending',()=>{
+ for(const t of ["what's trending","what is trending","show me trending","trending"]){
+  assert.equal(k(t),'trending',t);
+ }
+});
+
+test('buying the trending one is its own intent with an amount',()=>{
+ assert.deepEqual(intentFromSpeech('buy 0.05 sol of the dumbest memecoin on x'),
+  {kind:'buyTrending',sol:0.05});
+ assert.deepEqual(intentFromSpeech('buy 0.1 sol of whatever is trending'),
+  {kind:'buyTrending',sol:0.1});
+});
+
+test('buying the trending one still needs an amount',()=>{
+ assert.equal(intentFromSpeech('buy the dumbest memecoin'),null,
+  'no amount means no trade, same as any other buy');
+});
+
+test('a named symbol still wins over the trending shortcut',()=>{
+ assert.deepEqual(intentFromSpeech('buy 0.05 sol of wif'),
+  {kind:'buyBySymbol',symbol:'wif',sol:0.05});
+});

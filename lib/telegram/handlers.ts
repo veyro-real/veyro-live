@@ -70,6 +70,10 @@ export const handlers:Handlers={
    :'Voice notes off.');
  },
 
+ async trending(c,{deps,send}){
+  await send(render.trending(await deps.app.trending(c.limit)));
+ },
+
  async scan(c,{userId,deps,send}){
   await send(render.scan(await deps.app.scan(userId,c.limit)));
  },

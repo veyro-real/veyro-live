@@ -16,6 +16,7 @@ import {
 } from './db';
 import {balanceLamports, ensureKeypair, solToLamports} from './wallet/custody';
 import {buy as tradeBuy, reconcile, sell as tradeSell} from './trade/execute';
+import {dexscreener} from './market/dexscreener';
 import {compileStrategy} from './strategy/compile';
 import {matchStrategy} from './strategy/match';
 
@@ -25,6 +26,26 @@ export type ScanRow={
  candidate:Candidate;
  assessment:Assessment;
  match:StrategyMatch|null;
+};
+
+/**
+ * A token that is loud right now. Distinct from ScanRow on purpose: these
+ * are not launches and our rejection filter does not apply to them, so
+ * presenting them in the same shape would imply an assessment we never made.
+ */
+export type TrendingRow={
+ mint:string;
+ symbol:string;
+ name:string;
+ description:string;
+ /** Paid placement amount. Budget, not organic interest. */
+ boost:number|null;
+ liquiditySol:number|null;
+ marketCapUsd:number|null;
+ buys5m:number|null;
+ sells5m:number|null;
+ ageSeconds:number;
+ uri:string|null;
 };
 
 /** Idempotency key. The Telegram layer passes the update_id so a redelivered
@@ -103,6 +124,34 @@ export async function scan(userId:string,limit:number):Promise<ScanRow[]>{
   assessment:assessment as Assessment,
   match:strategy?matchStrategy(strategy,candidate,assessment as Assessment):null,
  }));
+}
+
+/**
+ * What is loud on DexScreener. Free and keyless, but a boost is a paid
+ * placement: it measures who spent money on visibility, not who earned
+ * attention, and the copy has to say so.
+ */
+export async function trending(limit:number):Promise<TrendingRow[]>{
+ const ds=dexscreener();
+ const boosts=(await ds.trending()).slice(0,limit);
+ const rows=await Promise.all(boosts.map(async b=>{
+  const pair=await ds.pair(b.mint);
+  if(!pair)return null;
+  return {
+   mint:b.mint,
+   symbol:pair.candidate.symbol,
+   name:pair.candidate.name,
+   description:b.description,
+   boost:b.boost,
+   liquiditySol:pair.liquiditySol,
+   marketCapUsd:pair.marketCapUsd,
+   buys5m:pair.buys5m,
+   sells5m:pair.sells5m,
+   ageSeconds:pair.ageSeconds,
+   uri:pair.candidate.uri,
+  } satisfies TrendingRow;
+ }));
+ return rows.filter((r):r is TrendingRow=>r!==null);
 }
 
 /** Why a specific mint scored what it scored. Safe to call for any mint. */

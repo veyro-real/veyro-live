@@ -91,3 +91,9 @@ test('chatid is a command, so a group can identify itself',()=>{
  assert.deepEqual(parseCommand('/chatid'),{kind:'chatid'});
  assert.deepEqual(parseCommand('/chatid@theveyrobotbot'),{kind:'chatid'});
 });
+
+test('trending is a command with an optional count',()=>{
+ assert.deepEqual(parseCommand('/trending'),{kind:'trending',limit:5});
+ assert.deepEqual(parseCommand('/trending 3'),{kind:'trending',limit:3});
+ assert.deepEqual(parseCommand('/trending 99'),{kind:'trending',limit:10});
+});

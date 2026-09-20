@@ -29,6 +29,7 @@ export type {AppSurface,Deps,Outbox,PendingAction,PendingActionStore,PendingBuy,
 /** Spoken asks that change nothing, so they need no confirmation. */
 const readOnly=(i:Intent):boolean=>
  i.kind==='wallet'||i.kind==='positions'||i.kind==='scan'||i.kind==='help'||
+ i.kind==='trending'||
  (i.kind==='limits'&&i.set===null)||(i.kind==='edge'&&i.text===null);
 
 export async function route(update:TelegramUpdate,deps:Deps):Promise<void>{
@@ -154,6 +155,19 @@ async function onVoice(update:TelegramUpdate,deps:Deps):Promise<void>{
  if(readOnly(intent)){
   await send(heard);
   return runCommand(intent as Command,ctx(user.id,chatId,key,deps));
+ }
+
+ if(intent.kind==='buyTrending'){
+  // No symbol was named, so take the loudest thing and show it in full.
+  // The trade still has to be confirmed like any other.
+  const rows=await deps.app.trending(1);
+  if(rows.length===0){
+   return void await send(heard+'\n\nNothing is trending right now, so there is '+
+    'nothing for me to pick. Try /trending in a moment.');
+  }
+  await send(heard);
+  return runCommand({kind:'buy',mint:rows[0].mint,sol:intent.sol},
+   ctx(user.id,chatId,key,deps));
  }
 
  if(intent.kind==='buyBySymbol'){
