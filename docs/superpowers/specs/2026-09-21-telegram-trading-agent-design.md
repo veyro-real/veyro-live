@@ -577,9 +577,11 @@ Every scenario chart includes:
 Probabilities are released only after calibration measurement. Until then the UI
 uses qualitative confidence or explicitly labels the values experimental.
 
-The approved visual reference is:
+The approved visual references are:
 
 - [`docs/telegram/examples/telegram-card-patterns-comparison.png`](../../telegram/examples/telegram-card-patterns-comparison.png)
+- [`docs/telegram/examples/telegram-scenario-charts.png`](../../telegram/examples/telegram-scenario-charts.png)
+- [`docs/telegram/examples/hot-token-board.png`](../../telegram/examples/hot-token-board.png)
 
 ## 18. Hype Engine
 
@@ -637,8 +639,9 @@ Celebration posts may offer:
 
 They do not weaken risk rules or automatically create another trade.
 
-The approved generated-art direction is preserved outside the repository during
-design exploration; production art is generated at runtime and cached.
+The approved generated-art direction is preserved at
+[`docs/telegram/examples/hype-engine-giga-green-win.png`](../../telegram/examples/hype-engine-giga-green-win.png).
+Production art is generated at runtime and cached.
 
 ## 19. System architecture
 
