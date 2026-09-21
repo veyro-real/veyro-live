@@ -33,3 +33,20 @@ test('the checksum tracks content, not whitespace noise',()=>{
  assert.equal(checksum('select 1;'),checksum('select 1;'));
  assert.notEqual(checksum('select 1;'),checksum('select 2;'));
 });
+
+import {checkConnectionMode} from '../src/db/migrate';
+
+test('the transaction pooler is refused, because the advisory lock cannot hold',()=>{
+ const r=checkConnectionMode('postgres://u:p@aws-0-us-west-1.pooler.supabase.com:6543/postgres');
+ assert.equal(r.ok,false);
+ assert.match((r as {reason:string}).reason,/6543|transaction pooler/);
+});
+
+test('the session pooler and the direct connection are accepted',()=>{
+ assert.equal(checkConnectionMode('postgres://u:p@aws-0-us-west-1.pooler.supabase.com:5432/postgres').ok,true);
+ assert.equal(checkConnectionMode('postgres://u:p@db.ref.supabase.co:5432/postgres').ok,true);
+});
+
+test('a malformed url is refused before a connection is attempted',()=>{
+ assert.equal(checkConnectionMode('not a url').ok,false);
+});

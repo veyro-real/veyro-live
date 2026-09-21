@@ -8,7 +8,7 @@
 import {fileURLToPath} from 'node:url';
 import {dirname, join} from 'node:path';
 import pg from 'pg';
-import {applyMigrations} from '../src/db/migrate.ts';
+import {applyMigrations, checkConnectionMode} from '../src/db/migrate.ts';
 
 const DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'supabase', 'migrations');
 const url = process.env.DATABASE_URL;
@@ -22,6 +22,12 @@ if (!url) {
     'migrations: the schema this build expects may not exist yet.\n' +
     'migrations: set it in Railway to make deploys self-migrating.');
   process.exit(0);
+}
+
+const mode = checkConnectionMode(url);
+if (!mode.ok) {
+  console.error('migrations: ' + mode.reason);
+  process.exit(1);
 }
 
 const client = new pg.Client({

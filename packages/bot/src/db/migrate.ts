@@ -45,6 +45,33 @@ export function pending(files:MigrationFile[],applied:AppliedRow[]):MigrationFil
  return out;
 }
 
+/**
+ * Supabase offers three connection strings and only two of them work here.
+ *
+ * The transaction pooler (port 6543) hands a different backend to each
+ * transaction, so `pg_advisory_lock` — which is session-scoped — stops
+ * serialising anything. Two instances of a rolling deploy would then migrate
+ * at the same time, which fails intermittently and looks like a flake.
+ *
+ * Use the session pooler or the direct connection, both on 5432.
+ */
+export function checkConnectionMode(url:string):{ok:true}|{ok:false;reason:string}{
+ let port:string;
+ try{
+  port=new URL(url).port;
+ }catch{
+  return {ok:false,reason:'DATABASE_URL is not a valid URL'};
+ }
+ if(port==='6543'){
+  return {ok:false,reason:
+   'DATABASE_URL points at the transaction pooler (port 6543). Migrations '+
+   'take a session-scoped advisory lock, which that pooler cannot hold, so '+
+   'concurrent deploys would not be serialised. Use the session pooler or '+
+   'the direct connection — both on port 5432.'};
+ }
+ return {ok:true};
+}
+
 export async function loadMigrations(dir:string):Promise<MigrationFile[]>{
  const names=(await readdir(dir)).filter(n=>n.endsWith('.sql'));
  return Promise.all(names.map(async name=>{
