@@ -14,6 +14,32 @@ The deployed mainnet program `2Z7xH99Z4YvG4U2Ew5PUZtVh8FE1VRhQ1Mo9dFvRvS3Q` vali
 
 The testnet rehearsal path stays intact and separate. Never use real funds as a fallback when test infrastructure fails.
 
+## Errors
+
+An error says what failed. Keep that all the way to whoever can act on it.
+
+When you catch an error and raise your own, include the original message. A
+bare code is not a diagnosis: `SUPABASE_STORE_ERROR` with the reason discarded
+hid a not-null violation that broke every command except `/start`, and the
+suite stayed green throughout. Name the operation too, so the message says
+where it happened as well as what went wrong.
+
+When a failure is genuinely survivable, say so in the value rather than
+pretending it did not happen. A balance that could not be read is `null`, not
+`0` — a user who has just deposited reads a zero as their money being gone.
+Any "couldn't determine" case gets its own state, distinct from a real value
+that happens to look like failure.
+
+Swallowing an error is allowed only where losing it costs the caller nothing,
+and every such place is listed in `tests/error-hygiene.test.mts` with its
+reason. That test fails on a new silent catch, on a file that grows one, and
+on an allowlist entry whose code is gone. Add a case to it whenever a dropped
+error costs debugging time — that is how the rule gets stricter over time
+instead of decaying.
+
+Error text reaches users in Telegram. Include the diagnostic message; never
+include row contents, query parameters or anything from the environment.
+
 ## Claims
 
 Make only truthful claims about validation, deployment and financial outcomes. Do not describe engagement-ranked or launch-feed candidates as alpha, an edge, or a prediction. Say what was measured and what was rejected. Never commit keys, environment secrets, provider credentials or local runtime state.

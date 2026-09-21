@@ -59,15 +59,17 @@ export async function ensureUser(telegramChatId:string,username:string|null):Pro
 }
 
 /** Creates the custodied wallet on first call. Returns the deposit address. */
-export async function ensureWallet(userId:string):Promise<{pubkey:string;lamports:string}>{
+export async function ensureWallet(userId:string):Promise<{pubkey:string;lamports:string|null}>{
  const kp=await ensureKeypair(userId);
  const pubkey=kp.publicKey.toBase58();
- // A balance read must never stop a user seeing where to deposit.
- let lamports='0';
+ // A balance read must never stop a user seeing where to deposit, so a
+ // failure here is not fatal. It is reported as null rather than '0': a user
+ // who has just deposited would read a zero as their funds being gone.
  try{
-  lamports=(await balanceLamports(pubkey)).toString();
- }catch{}
- return {pubkey,lamports};
+  return {pubkey,lamports:(await balanceLamports(pubkey)).toString()};
+ }catch{
+  return {pubkey,lamports:null};
+ }
 }
 
 export async function linkX(userId:string,accessToken:string,refreshToken:string,handle:string):Promise<void>{

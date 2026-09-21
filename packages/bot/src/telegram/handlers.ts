@@ -37,8 +37,10 @@ function report(outcome:app.TradeOutcome,verb:string):string{
 export const handlers:Handlers={
  async wallet(_c,{userId,deps,send}){
   const w=await deps.app.ensureWallet(userId);
-  await send('Your deposit address:\n'+w.pubkey+'\n\n'+
-   'Balance: '+render.sol(w.lamports)+' SOL\n\n'+render.CUSTODY);
+  const balance=w.lamports===null
+   ? 'Balance: could not be read just now. Your funds are not affected; try again in a moment.'
+   : 'Balance: '+render.sol(w.lamports)+' SOL';
+  await send('Your deposit address:\n'+w.pubkey+'\n\n'+balance+'\n\n'+render.CUSTODY);
  },
 
  async limits(c,{userId,deps,send}){
