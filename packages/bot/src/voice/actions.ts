@@ -4,7 +4,7 @@
 // meant, not queue a second thing to happen. Kept in veyro_state rather than
 // a new table, since it is short-lived UI state.
 
-import {getState,saveState} from '../store';
+import {clearState,getState,saveState} from '../store';
 import type {PendingAction,PendingActionStore} from '../telegram/ports';
 
 const TTL_MS=10*60*1000;
@@ -24,16 +24,16 @@ export function actionStore(opts:{now?:()=>number;ttlMs?:number}={}):PendingActi
   async take(id){
    const record=await getState<Stored>(byId(id));
    if(!record)return null;
-   await saveState(byId(id),null);
-   await saveState(byUser(record.userId),null);
+   await clearState(byId(id));
+   await clearState(byUser(record.userId));
    if(record.expiresAt<=now())return null;
    const {expiresAt,...action}=record;
    return action;
   },
   async clear(userId){
    const id=await getState<string>(byUser(userId));
-   if(id)await saveState(byId(id),null);
-   await saveState(byUser(userId),null);
+   if(id)await clearState(byId(id));
+   await clearState(byUser(userId));
   },
  };
 }
