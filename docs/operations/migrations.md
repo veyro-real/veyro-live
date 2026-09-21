@@ -14,6 +14,30 @@ This is a different credential from `SUPABASE_SERVICE_ROLE_KEY`. That key
 talks to PostgREST, which cannot run DDL; migrations need a direct Postgres
 connection.
 
+### Which of the three connection strings
+
+Supabase offers three. Two work.
+
+| String | Port | Use it? |
+|---|---|---|
+| Session pooler | 5432 | **Yes** — IPv4, and holds a session lock |
+| Direct connection | 5432 | Yes, but IPv6-only on newer projects |
+| Transaction pooler | 6543 | **No** |
+
+The transaction pooler hands each transaction a different backend, so the
+session-scoped `pg_advisory_lock` this runner takes stops serialising
+anything and two instances of a rolling deploy could migrate at once. The
+runner rejects port 6543 before connecting rather than letting that become an
+intermittent race.
+
+### The password is not recoverable
+
+Supabase does not store it retrievably. If it is not in your password
+manager, reset it: dashboard → Settings → Database → Reset database password.
+Resetting is safe here — nothing else in this project uses it. The app talks
+to PostgREST with `SUPABASE_SERVICE_ROLE_KEY`, and the CLI's keychain entry
+is not a usable API token.
+
 Until it is set, `pnpm db:migrate` warns and exits 0 rather than failing. That
 keeps deploys working exactly as they did before this existed, at the cost of
 the schema possibly lagging the code.
