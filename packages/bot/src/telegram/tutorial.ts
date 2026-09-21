@@ -1,86 +1,113 @@
 // The walkthrough.
 //
-// Seven screens, edited in place so the chat keeps one message rather than
-// ten. Order is deliberate: custody before anything, limits before funding,
-// funding before a single command that can spend.
+// Seven screens that edit one message in place, so the chat keeps a single
+// tour rather than a wall of them. Order is deliberate: custody before
+// anything, a ceiling before funding, funding before a command that spends.
 //
-// It describes what the bot does and never what the market will do. The feed
-// is a filter, not a tip, and no screen here says otherwise.
+// Every screen that describes a command also offers to run it, because
+// reading "/scan lists what survived" teaches less than seeing four tokens.
+// Those actions reply in a new message and leave the tour where it was.
+//
+// It says what the bot does and never what the market will do. The feed is a
+// filter, and no screen here implies otherwise.
 
+import type {Command} from './parse';
 import type {InlineKeyboard} from './types';
 
 export const TUTORIAL='t:';
+/** Runs the current screen's suggested command. */
+export const TUTORIAL_DO='d:';
 
-export type Step={title:string;body:string};
+export type Step={
+ title:string;
+ body:string;
+ /** Something the reader can do from here, run as if they had typed it. */
+ action?:{label:string;command:Command};
+};
 
 export const STEPS:Step[]=[
  {
-  title:'What you are about to use',
+  title:'Quick tour',
   body:
-   'Veyro buys and sells Solana memecoins from a wallet this bot controls.\n\n'+
-   'Custody, plainly: the private key to that wallet is held by this service, '+
-   'not by you. If the service is compromised, the funds in it are gone. '+
-   'Deposit what you are willing to lose and not a lamport more.\n\n'+
-   'Everything after this screen assumes you are fine with that.',
+   'Seven screens, about a minute.\n\n'+
+   'Veyro buys and sells Solana memecoins for you, out of a wallet it '+
+   'controls.\n\n'+
+   'Read that last part twice. The private key to that wallet lives on this '+
+   'service, not with you. If the service is compromised, whatever is in the '+
+   'wallet is gone. Only put in what you can afford to lose.\n\n'+
+   'Still with me?',
  },
  {
-  title:'Set your ceiling first',
+  title:'Set a ceiling first',
   body:
-   'Nothing can be spent until you set limits. Every trade reserves against '+
-   'them in the database before a transaction is even built, so this is a '+
-   'hard stop rather than a warning.\n\n'+
+   'Nothing can be spent until you do. This is not a warning you can click '+
+   'past — every trade reserves against your limits in the database before a '+
+   'transaction is even built.\n\n'+
+   'Three numbers: per trade, per day, and how long before it all switches '+
+   'off.\n\n'+
    '/limits 0.5 2 24\n'+
-   '0.5 SOL per trade · 2 SOL a day · expires in 24 hours.\n\n'+
-   'The expiry is the point. When it lapses, spending stops until you set it '+
-   'again — so walking away is the safe default.',
+   'Half a SOL per trade, two a day, dead in 24 hours.\n\n'+
+   'The expiry is the good bit. Walk away, it lapses, nothing can spend.',
+  action:{
+   label:'Set 0.5 · 2 SOL · 24h',
+   command:{kind:'limits',set:{maxTradeSol:0.5,dailyCapSol:2,hours:24}},
+  },
  },
  {
-  title:'Fund it',
+  title:'Put something in it',
   body:
-   '/wallet gives your deposit address and balance.\n\n'+
-   'Leave about 0.012 SOL of headroom. Each swap pays network and priority '+
+   '/wallet gives you an address. Send SOL there and you are funded.\n\n'+
+   'Leave about 0.012 SOL of room. Every swap pays network and priority '+
    'fees, and Jupiter opens and closes a wrapped-SOL account on the way '+
-   'through. Spending to the last lamport just makes the next trade fail.',
+   'through. Spend down to the last lamport and the next trade just fails.',
+  action:{label:'Show my address',command:{kind:'wallet'}},
  },
  {
-  title:'What the feed actually watches',
+  title:'What I actually watch',
   body:
-   'A worker reads pump.fun launches as they happen and measures each one: '+
-   'age, holder count, how much of the supply the top ten hold, liquidity, '+
-   'unique buyers, and whether mint and freeze authority were revoked.\n\n'+
-   'Most are thrown out, and every rejection has a name — '+
+   'A worker reads pump.fun launches the second they happen and measures '+
+   'each one: how old it is, how many holders, how much the top ten hold, '+
+   'liquidity, unique buyers, and whether mint and freeze authority were '+
+   'revoked.\n\n'+
+   'Most get thrown out, and I will tell you which test they failed — '+
    'INSIDER_CONCENTRATION, BUNDLED_LAUNCH, CREATOR_SERIAL_LAUNCHER.\n\n'+
-   '/scan lists what survived. Surviving a filter is not a reason to buy; '+
-   'it only means none of those specific tests failed.',
+   'Surviving that is not me saying a token will go up. It means none of '+
+   'those specific tests failed. Nothing more.',
+  action:{label:'Run a scan',command:{kind:'scan',limit:10}},
  },
  {
-  title:'Make it explain itself',
+  title:'Do not take my word for it',
   body:
-   '/why <mint> prints the measurement behind a verdict: the numbers it '+
-   'read, the tests that failed, and the time it looked.\n\n'+
-   'If it never saw the token, it tells you that instead of inventing a '+
-   'view. Any number it did not measure reads as unknown, never as zero.',
+   'Tap any token in a scan, or send /why and a mint.\n\n'+
+   'You get the measurement itself: the numbers I read, the tests that '+
+   'failed, and when I looked.\n\n'+
+   'If I never saw the token I say so rather than invent a view. If I could '+
+   'not measure something it reads as unknown, never as zero — those mean '+
+   'opposite things and you should be able to tell them apart.',
  },
  {
   title:'Buying, and getting back out',
   body:
-   '/buy <mint> 0.1 shows you the trade and waits for a tap. Nothing moves '+
-   'until you confirm, and a confirmation can only be used once.\n\n'+
-   '/positions — what you are holding.\n'+
-   '/sell <id> — close one of them.\n\n'+
-   'A position that fails to open is reported as failed. It is never quietly '+
-   'dropped.',
+   '/buy <mint> 0.1\n'+
+   'I show you the trade and wait. Nothing moves until you tap confirm, and '+
+   'a confirmation only works once.\n\n'+
+   '/positions — what you are holding\n'+
+   '/sell <id> — close one of them\n\n'+
+   'If an entry fails, I tell you it failed. It never quietly disappears.',
+  action:{label:'My positions',command:{kind:'positions',includeClosed:false}},
  },
  {
-  title:'Hands free, and your own filter',
+  title:'Two things that make this fast',
   body:
-   'Send a voice note. It transcribes, shows you what it heard, and waits '+
-   'for a tap before anything spends — so a misheard instruction costs you '+
-   'nothing.\n\n'+
-   '/edge only tokens under five minutes old with fifty or more holders\n'+
-   'Plain English, compiled into something deterministic that runs the same '+
-   'way every time.\n\n'+
-   'That is the whole surface. Set your limits and go.',
+   'Talk to me. Send a voice note and I transcribe it, show you what I '+
+   'heard, and wait for a tap before anything spends — so a mishearing costs '+
+   'you nothing.\n\n'+
+   'Write your own filter:\n'+
+   '/edge only tokens under five minutes old with fifty or more holders\n\n'+
+   'Plain English, compiled into something that runs the same way every '+
+   'time.\n\n'+
+   'That is the whole thing. Set your limits and go.',
+  action:{label:'Show my edge',command:{kind:'edge',text:null}},
  },
 ];
 
@@ -89,14 +116,21 @@ const clamp=(i:number):number=>Math.min(STEPS.length-1,Math.max(0,Math.trunc(i)|
 export function stepMessage(index:number):{text:string;keyboard:InlineKeyboard}{
  const i=clamp(index);
  const step=STEPS[i]!;
- const text=
-  `Step ${i+1} of ${STEPS.length} — ${step.title}\n\n${step.body}`;
+ const text=`Step ${i+1} of ${STEPS.length} — ${step.title}\n\n${step.body}`;
+
+ const keyboard:InlineKeyboard=[];
+ if(step.action)keyboard.push([{text:step.action.label,callback_data:TUTORIAL_DO+String(i)}]);
 
  const nav:InlineKeyboard[number]=[];
  if(i>0)nav.push({text:'‹ Back',callback_data:TUTORIAL+String(i-1)});
- if(i<STEPS.length-1)nav.push({text:'Next ›',callback_data:TUTORIAL+String(i+1)});
+ // The first screen is a consent gate, so its forward button says so.
+ nav.push(...(i<STEPS.length-1
+  ?[{text:i===0?'I am in ›':'Next ›',callback_data:TUTORIAL+String(i+1)}]
+  :[{text:'Start over',callback_data:TUTORIAL+'0'}]));
+ keyboard.push(nav);
 
- const keyboard:InlineKeyboard=[nav];
- if(i===STEPS.length-1)keyboard.push([{text:'Start over',callback_data:TUTORIAL+'0'}]);
  return {text,keyboard};
 }
+
+/** The command a screen's action button stands for, if it has one. */
+export const stepAction=(index:number):Command|null=>STEPS[clamp(index)]?.action?.command??null;

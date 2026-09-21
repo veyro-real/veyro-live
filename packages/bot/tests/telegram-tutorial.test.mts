@@ -1,4 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
+import {assertDisclosesCustody} from './helpers/custody.mts';
 import {STEPS,stepMessage,TUTORIAL} from '../src/telegram/tutorial';
 
 test('every step is reachable and numbered for the reader',()=>{
@@ -11,8 +12,7 @@ test('every step is reachable and numbered for the reader',()=>{
 
 test('the first step states custody before anything else',()=>{
  const {text}=stepMessage(0);
- assert.match(text,/holds your keys|holds the key|private key/i);
- assert.match(text,/afford to lose|willing to lose/i);
+ assertDisclosesCustody(text,'step 1');
 });
 
 test('navigation is bounded at both ends',()=>{
@@ -70,8 +70,7 @@ test('/start opens the walkthrough at step one',async()=>{
  await route(msg('/start') as never,h.deps);
  assert.equal(h.sent.length,1);
  assert.match(h.sent[0]!.text,new RegExp(`Step 1 of ${STEPS.length}`));
- assert.match(h.sent[0]!.text,/custody/i);
- assert.match(h.sent[0]!.text,/held by this service|holds your keys/i);
+ assertDisclosesCustody(h.sent[0]!.text,'/start');
  assert.ok((h.sent[0]!.keyboard as {callback_data:string}[][]).flat()
   .some(b=>b.callback_data===TUTORIAL+'1'),'start must offer the next step');
 });
@@ -90,4 +89,37 @@ test('tapping next edits the message instead of sending another',async()=>{
  assert.equal(h.sent.length,0,'no new message');
  assert.equal(h.edits.length,1);
  assert.match(h.edits[0]!.text,new RegExp(`Step 2 of ${STEPS.length}`));
+});
+
+import {stepAction,TUTORIAL_DO} from '../src/telegram/tutorial';
+
+test('every screen that suggests a command can run it',()=>{
+ const withActions=STEPS.map((s,i)=>s.action?i:-1).filter(i=>i>=0);
+ assert.ok(withActions.length>=4,'a tour you can only read is a help page');
+ for(const i of withActions){
+  assert.ok(stepAction(i),`step ${i+1} offers a button with no command`);
+  assert.ok(stepMessage(i).keyboard.flat()
+   .some(b=>b.callback_data===TUTORIAL_DO+String(i)),`step ${i+1} button is not wired`);
+ }
+});
+
+test('the limits button names the exact numbers it will set',()=>{
+ const step=STEPS.find(s=>s.action?.command.kind==='limits');
+ assert.ok(step,'no limits action');
+ const set=(step!.action!.command as {set:{maxTradeSol:number;dailyCapSol:number;hours:number}}).set;
+ assert.ok(step!.action!.label.includes(String(set.maxTradeSol)),'label hides the per-trade cap');
+ assert.ok(step!.action!.label.includes(String(set.dailyCapSol)),'label hides the daily cap');
+ assert.ok(step!.action!.label.includes(String(set.hours)),'label hides the expiry');
+});
+
+test('tapping an action runs it as a new message, leaving the tour in place',async()=>{
+ const h=harness();
+ const scanStep=STEPS.findIndex(s=>s.action?.command.kind==='scan');
+ let ran:unknown=null;
+ (h.deps.app as unknown as {scan:unknown}).scan=async(...a:unknown[])=>{ran=a;return [];};
+ await route({update_id:3,callback_query:{id:'c2',data:TUTORIAL_DO+String(scanStep),
+  from:{id:99,username:'j'},message:{message_id:5,chat:{id:99}}}} as never,h.deps);
+ assert.ok(ran,'the scan command never ran');
+ assert.equal(h.edits.length,0,'an action must not overwrite the tour');
+ assert.equal(h.sent.length,1,'the result should arrive as its own message');
 });

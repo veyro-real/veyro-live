@@ -18,7 +18,7 @@ import type * as app from '../app';
 import * as render from './render';
 import {WHY} from './render';
 import {ACTION,ACTION_NO,CANCEL,CONFIRM,report,runCommand,type Ctx} from './handlers';
-import {stepMessage,TUTORIAL} from './tutorial';
+import {stepAction,stepMessage,TUTORIAL,TUTORIAL_DO} from './tutorial';
 
 /** The part of lib/app the Telegram channel is allowed to call. */
 import type {
@@ -101,6 +101,15 @@ async function onCallback(update:TelegramUpdate,deps:Deps):Promise<void>{
  const send=(text:string)=>deps.out.send(chatId,text);
 
  const id=q.data.slice(2);
+
+ // A walkthrough screen's action button, run as if the reader had typed it.
+ // The reply is a new message so the tour stays where it was.
+ if(q.data.startsWith(TUTORIAL_DO)){
+  const command=stepAction(Number(id));
+  if(!command)return;
+  const user=await deps.app.ensureUser(chatId,q.from.username??null);
+  return runCommand(command,ctx(user.id,chatId,String(update.update_id),deps));
+ }
 
  // Walkthrough navigation. Read-only, so it needs no user record and no
  // confirmation; it edits the one message rather than sending another.

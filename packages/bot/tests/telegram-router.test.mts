@@ -1,4 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
+import {assertDisclosesCustody} from './helpers/custody.mts';
 const {route}=await import('../src/telegram/router');
 import type {Deps,Sent} from '../src/telegram/router';
 
@@ -70,7 +71,7 @@ const callback=(data:string,update_id=2)=>({update_id,callback_query:{id:'cb-1',
 test('start tells the user the service holds their keys',async()=>{
  const h=harness();
  await route(message('/start'),h.deps);
- assert.match(h.last().text,/custod|hold(s)? your (private )?keys/i);
+ assertDisclosesCustody(h.last().text,'/start');
 });
 
 test('wallet shows the deposit address and the balance',async()=>{
