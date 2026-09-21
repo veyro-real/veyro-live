@@ -12,7 +12,8 @@
     "start": "pnpm --filter @veyro/control-plane start",
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "node --import tsx --test tests/*.test.mts && pnpm -r --if-present test",
-    "worker": "pnpm --filter @veyro/market-worker start"
+    "worker": "pnpm --filter @veyro/market-worker start",
+    "db:migrate": "pnpm --filter @veyro/bot db:migrate"
   },
   "devDependencies": {
     "tsx": "4.23.9",

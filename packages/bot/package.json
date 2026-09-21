@@ -8,16 +8,19 @@
   },
   "scripts": {
     "test": "node --import tsx --test tests/*.test.mts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "node --import tsx scripts/migrate.mjs"
   },
   "dependencies": {
     "@solana/web3.js": "^1.99.0",
     "@supabase/supabase-js": "^2.116.0",
     "@veyro/core": "workspace:*",
-    "@veyro/sdk": "workspace:*"
+    "@veyro/sdk": "workspace:*",
+    "pg": "^8.23.0"
   },
   "devDependencies": {
     "@types/node": "22.20.1",
+    "@types/pg": "^8.23.1",
     "tsx": "4.23.9",
     "typescript": "5.9.3"
   }

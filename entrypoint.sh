@@ -8,6 +8,11 @@ SERVICE="${SERVICE:-control-plane}"
 
 case "$SERVICE" in
   control-plane)
+    # Migrations first, as root so pnpm is on PATH. set -e means a failure
+    # stops the container: serving against an unmigrated schema is worse than
+    # not serving. One service migrates, and this is it.
+    pnpm --filter @veyro/bot db:migrate
+
     # The traced standalone bundle, not `next start`, which would need the
     # whole dev dependency tree present at runtime.
     CMD='exec node apps/control-plane/.next/standalone/apps/control-plane/server.js'
