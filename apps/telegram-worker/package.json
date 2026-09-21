@@ -1,0 +1,15 @@
+{
+  "name": "@veyro/telegram-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --import tsx src/main.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.1",
+    "tsx": "4.23.9",
+    "typescript": "5.9.3"
+  }
+}
