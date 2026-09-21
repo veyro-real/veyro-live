@@ -21,6 +21,15 @@ fine, and a restart loop would take down the webhook with it.
 readiness and diagnostics view, and status.veyro.wtf is what reads it. Keep
 them separate.
 
+## Two config files, on purpose
+
+`railway.json` health-checks `/`, which only the control plane serves. A worker
+has no HTTP server, so that probe would fail forever and Railway would restart
+a process that is working. Worker services point their config-as-code path at
+`railway.worker.json`, which has no health check and restarts ALWAYS rather
+than ON_FAILURE — a feed worker that exits cleanly is still a feed worker that
+stopped.
+
 ## Deploying a new service
 
 1. Create the Railway service against this repository.
