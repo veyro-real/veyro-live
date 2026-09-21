@@ -19,6 +19,9 @@ export type Sent={chatId:string;text:string;keyboard?:InlineKeyboard};
 export type Outbox={
  send(chatId:string,text:string,keyboard?:InlineKeyboard):Promise<void>;
  answer(callbackQueryId:string,text?:string):Promise<void>;
+ /** Replaces a message in place. Used by the walkthrough so it stays
+  *  one message instead of a screen per step. */
+ edit(chatId:string,messageId:number,text:string,keyboard?:InlineKeyboard):Promise<void>;
  /** Telegram fetches the url itself; we never download the bytes. */
  photo(chatId:string,imageUrl:string,caption:string,keyboard?:InlineKeyboard):Promise<void>;
  /** OGG/Opus bytes, uploaded as a Telegram voice note. */

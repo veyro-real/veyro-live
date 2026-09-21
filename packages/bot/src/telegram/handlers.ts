@@ -77,7 +77,8 @@ export const handlers:Handlers={
  },
 
  async scan(c,{userId,deps,send}){
-  await send(render.scan(await deps.app.scan(userId,c.limit)));
+  const {text,keyboard}=render.scan(await deps.app.scan(userId,c.limit));
+  await send(text,keyboard);
  },
 
  async why(c,{chatId,deps,send}){

@@ -16,7 +16,9 @@ import {parseCommand,type Command} from './parse';
 import {intentFromSpeech,type Intent} from './intent';
 import type * as app from '../app';
 import * as render from './render';
+import {WHY} from './render';
 import {ACTION,ACTION_NO,CANCEL,CONFIRM,report,runCommand,type Ctx} from './handlers';
+import {stepMessage,TUTORIAL} from './tutorial';
 
 /** The part of lib/app the Telegram channel is allowed to call. */
 import type {
@@ -75,6 +77,10 @@ async function onMessage(update:TelegramUpdate,deps:Deps):Promise<void>{
    'Set your limits with /limits before anything can be spent, then /wallet for '+
    'your deposit address. /help lists the rest.');
  }
+ if(command.kind==='tutorial'){
+  const first=stepMessage(0);
+  return void await send(first.text,first.keyboard);
+ }
  if(command.kind==='chatid'){
   return void await send('Chat id: '+chatId+'\n\nSet VEYRO_ALERT_CHAT_ID to this to receive feed alerts here.');
  }
@@ -99,6 +105,22 @@ async function onCallback(update:TelegramUpdate,deps:Deps):Promise<void>{
  const send=(text:string)=>deps.out.send(chatId,text);
 
  const id=q.data.slice(2);
+
+ // Walkthrough navigation. Read-only, so it needs no user record and no
+ // confirmation; it edits the one message rather than sending another.
+ if(q.data.startsWith(TUTORIAL)){
+  const step=stepMessage(Number(id));
+  const messageId=q.message?.message_id;
+  if(messageId===undefined)return void await send(step.text);
+  return void await deps.out.edit(chatId,messageId,step.text,step.keyboard);
+ }
+
+ // "Why $TOKEN" from a /scan list. Read-only, but it needs a user record
+ // because every command runs as somebody.
+ if(q.data.startsWith(WHY)){
+  const user=await deps.app.ensureUser(chatId,q.from.username??null);
+  return runCommand({kind:'why',mint:id},ctx(user.id,chatId,String(update.update_id),deps));
+ }
 
  // A spoken instruction awaiting confirmation.
  if(q.data.startsWith(ACTION_NO)){

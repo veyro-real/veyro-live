@@ -12,6 +12,7 @@ export type LimitsInput={maxTradeSol:number;dailyCapSol:number;hours:number};
 export type Command=
  |{kind:'start'}
  |{kind:'help'}
+ |{kind:'tutorial'}
  |{kind:'connect'}
  |{kind:'wallet'}
  |{kind:'revoke'}
@@ -51,6 +52,7 @@ export function parseCommand(raw:string):Command{
  switch(command){
   case 'start':return {kind:'start'};
   case 'help':return {kind:'help'};
+  case 'tutorial':case 'guide':return {kind:'tutorial'};
   case 'connect':return {kind:'connect'};
   case 'wallet':return {kind:'wallet'};
   case 'revoke':return {kind:'revoke'};

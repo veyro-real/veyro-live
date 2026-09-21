@@ -6,6 +6,7 @@
 
 import type {Limits,Position} from '../types';
 import type {ScanRow,TrendingRow} from '../app';
+import type {InlineKeyboard} from './types';
 
 /** Lamports as SOL, exact, with no trailing zeros. Never rounded for display. */
 export function sol(lamports:bigint|string):string{
@@ -47,6 +48,7 @@ export function help():string{
   '/revoke — switch off all spending now',
   '/edge — show your strategy, or /edge <plain English>',
   '/trending — what is loud right now, from paid DexScreener placements',
+  '/tutorial — a seven step walkthrough of everything below',
   '/scan — candidates that passed the filter',
   '/why <mint> — what was measured and what was rejected',
   '/buy <mint> <SOL> — buy, after you confirm',
@@ -89,16 +91,78 @@ export function positions(list:Position[]):string{
  ].filter(Boolean).join('\n')).join('\n\n');
 }
 
-export function scan(rows:ScanRow[]):string{
- if(rows.length===0)return 'Nothing passed the filter yet. Try again once the feed has seen more launches.';
- return rows.map(r=>{
-  const m=r.match;
+/** Callback prefix for the per-candidate explain button. */
+export const WHY='y:';
+
+/** Most buttons one message carries before the keyboard stops being usable. */
+const MAX_BUTTONS=8;
+
+const age=(seconds:number):string=>{
+ if(seconds<90)return Math.max(1,Math.round(seconds))+'s old';
+ if(seconds<5400)return Math.round(seconds/60)+'m old';
+ return Math.round(seconds/3600)+'h old';
+};
+
+/** A measurement that was not taken is unknown. It is never rendered as 0:
+ *  a reader cannot tell an absent number from a real zero, and the two mean
+ *  opposite things about a token. */
+const measured=(value:number|null,unit:(n:number)=>string):string|null=>
+ value===null?null:unit(value);
+
+const trim=(n:number,places=1):string=>{
+ const fixed=n.toFixed(places);
+ return fixed.endsWith('.0')?fixed.slice(0,-2):fixed;
+};
+
+export function scan(rows:ScanRow[]):{text:string;keyboard:InlineKeyboard}{
+ if(rows.length===0){
+  return {
+   text:'Nothing passed the filter yet. The feed keeps reading launches; '+
+        'try again in a minute.',
+   keyboard:[],
+  };
+ }
+
+ const lines=rows.map((r,i)=>{
+  const f=r.assessment.features;
+  const facts=[
+   measured(f.holders,n=>n+' holders'),
+   measured(f.uniqueBuyers,n=>n+' buyers'),
+   measured(f.liquiditySol,n=>trim(n)+' SOL liquidity'),
+   measured(f.top10Pct,n=>'top 10 hold '+Math.round(n)+'%'),
+  ].filter(Boolean) as string[];
+  const unknown=4-facts.length;
+  if(unknown>0)facts.push(unknown===4?'nothing measured yet':unknown+' unknown');
+
+  const strategy=r.match
+   ?(r.match.matched?'matches your edge':'off your edge: '+r.match.failedClauses.join(', '))
+   :null;
+
   return [
-   r.candidate.symbol+' — score '+r.assessment.score,
-   '  '+r.candidate.mint,
-   m?('  strategy: '+(m.matched?'matched':'no match ('+m.failedClauses.join(', ')+')')):'',
+   `${i+1}. $${r.candidate.symbol} — ${age(f.ageSeconds)}`,
+   '   '+facts.join(' · '),
+   strategy?'   '+strategy:'',
+   '   '+r.candidate.mint,
   ].filter(Boolean).join('\n');
- }).join('\n\n');
+ });
+
+ const head=rows.length===1
+  ?'1 launch passed the filter.'
+  :rows.length+' launches passed the filter, newest first.';
+
+ const text=[
+  head,
+  '',
+  lines.join('\n\n'),
+  '',
+  'Passing means none of the rejection tests failed. It is not a view on '+
+  'where the price goes. Tap a name for the measurement behind it.',
+ ].join('\n');
+
+ const keyboard:InlineKeyboard=rows.slice(0,MAX_BUTTONS)
+  .map(r=>[{text:'Why $'+r.candidate.symbol,callback_data:WHY+r.candidate.mint}]);
+
+ return {text,keyboard};
 }
 
 export function why(row:ScanRow|null,mint:string):string{

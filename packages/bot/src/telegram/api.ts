@@ -64,6 +64,21 @@ export function telegramApi(opts:{token?:string;fetch?:typeof fetch}={}):Outbox{
     });
    }
   },
+  async edit(chatId,messageId,text,keyboard){
+   // A tap that changes nothing leaves the text identical and Telegram
+   // answers 'message is not modified'. That is not a failure worth raising.
+   try{
+    await call('editMessageText',{
+     chat_id:chatId,
+     message_id:messageId,
+     text:chunk(text)[0],
+     disable_web_page_preview:true,
+     ...(keyboard?{reply_markup:{inline_keyboard:keyboard satisfies InlineKeyboard}}:{}),
+    });
+   }catch(e){
+    if(!/not modified/i.test((e as Error).message))throw e;
+   }
+  },
   async photo(chatId,imageUrl,caption,keyboard){
    await call('sendPhoto',{
     chat_id:chatId,
