@@ -70,14 +70,10 @@ async function onMessage(update:TelegramUpdate,deps:Deps):Promise<void>{
  if(command.kind==='unknown')return void await send('I did not recognise that. /help lists what I answer.');
  if(command.kind==='usage')return void await send(render.usage(command.command));
  if(command.kind==='help')return void await send(render.help());
- if(command.kind==='start'){
-  return void await send(
-   'Veyro trades Solana memecoins from a wallet this bot controls for you.\n\n'+
-   render.CUSTODY+'\n\n'+
-   'Set your limits with /limits before anything can be spent, then /wallet for '+
-   'your deposit address. /help lists the rest.');
- }
- if(command.kind==='tutorial'){
+ // /start is the first thing anyone sends, so it opens the walkthrough
+ // rather than describing one. Step one is the custody disclosure, which is
+ // what has to be read before a deposit either way.
+ if(command.kind==='start'||command.kind==='tutorial'){
   const first=stepMessage(0);
   return void await send(first.text,first.keyboard);
  }

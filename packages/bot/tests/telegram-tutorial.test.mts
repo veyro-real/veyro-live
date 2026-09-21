@@ -45,3 +45,49 @@ test('the walkthrough never promises an outcome',()=>{
   assert.ok(!all.includes(banned),`walkthrough claims "${banned}"`);
  }
 });
+
+// /start is the first thing anyone sends, so it is the walkthrough itself
+// rather than a page that tells you a walkthrough exists.
+const {route}=await import('../src/telegram/router');
+import type {Deps,Sent} from '../src/telegram/router';
+
+function harness(){
+ const sent:Sent[]=[];const edits:{messageId:number;text:string}[]=[];
+ const deps={
+  app:{ensureUser:async()=>({id:'u-1',telegramChatId:'99'})},
+  out:{send:async(chatId:string,text:string,keyboard?:unknown)=>{sent.push({chatId,text,keyboard} as Sent);},
+       answer:async()=>{},photo:async()=>{},voiceNote:async()=>{},
+       edit:async(_c:string,messageId:number,text:string)=>{edits.push({messageId,text});}},
+  pendingAction:{put:async()=>{},take:async()=>null,clear:async()=>{}},
+  pending:{put:async()=>{},take:async()=>null},
+ } as unknown as Deps;
+ return {sent,edits,deps};
+}
+const msg=(text:string)=>({update_id:1,message:{message_id:1,chat:{id:99},from:{username:'j'},text}});
+
+test('/start opens the walkthrough at step one',async()=>{
+ const h=harness();
+ await route(msg('/start') as never,h.deps);
+ assert.equal(h.sent.length,1);
+ assert.match(h.sent[0]!.text,new RegExp(`Step 1 of ${STEPS.length}`));
+ assert.match(h.sent[0]!.text,/custody/i);
+ assert.match(h.sent[0]!.text,/held by this service|holds your keys/i);
+ assert.ok((h.sent[0]!.keyboard as {callback_data:string}[][]).flat()
+  .some(b=>b.callback_data===TUTORIAL+'1'),'start must offer the next step');
+});
+
+test('/tutorial opens the same first screen',async()=>{
+ const a=harness(),b=harness();
+ await route(msg('/start') as never,a.deps);
+ await route(msg('/tutorial') as never,b.deps);
+ assert.equal(a.sent[0]!.text,b.sent[0]!.text);
+});
+
+test('tapping next edits the message instead of sending another',async()=>{
+ const h=harness();
+ await route({update_id:2,callback_query:{id:'c1',data:TUTORIAL+'1',
+  from:{id:99,username:'j'},message:{message_id:5,chat:{id:99}}}} as never,h.deps);
+ assert.equal(h.sent.length,0,'no new message');
+ assert.equal(h.edits.length,1);
+ assert.match(h.edits[0]!.text,new RegExp(`Step 2 of ${STEPS.length}`));
+});
