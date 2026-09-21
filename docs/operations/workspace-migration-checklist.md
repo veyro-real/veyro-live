@@ -28,14 +28,22 @@ Docker contract assertions.
 /api/health  /api/mcp  /api/state  /api/telegram/webhook
 ```
 
+## The image, verified
+
+`docker build` produces a 1.28 GB image. Against it:
+
+| Check | Result |
+|---|---|
+| `SERVICE` unset | serves `/` 200, `/api/health` 503, binds `0.0.0.0:3000` |
+| `SERVICE=telegram-worker` | logs `worker disabled`, exits 0 |
+| `SERVICE=bogus` | exit 64 |
+| `SERVICE='control-plane; rm -rf /'` | exit 64, no shell reached |
+| Server process | `next-server` at uid 1000 (`node`); only `su` itself is root |
+
 ## What was not verified
 
-**The Docker image was never built.** Docker was not running on the machine
-that did this migration, so `docker build` and `docker run -e SERVICE=bogus`
-have not been executed against the new Dockerfile. The entrypoint's allow-list
-was verified directly: `SERVICE=bogus` and
-`SERVICE='control-plane; rm -rf /'` both exit 64 without reaching a shell.
-Build the image before the first Railway deploy from this branch.
+*(The Docker gap recorded here has since been closed; see "The image, verified"
+below.)*
 
 **Test files are still not typechecked.** The old root tsconfig globbed
 `**/*.ts`, which never matches `.mts`, so no test file has ever been through
