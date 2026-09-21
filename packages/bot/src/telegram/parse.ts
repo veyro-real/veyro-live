@@ -13,6 +13,7 @@ export type Command=
  |{kind:'start'}
  |{kind:'help'}
  |{kind:'tutorial'}
+ |{kind:'mode';set:'paper'|'live'|null}
  |{kind:'connect'}
  |{kind:'wallet'}
  |{kind:'revoke'}
@@ -53,6 +54,14 @@ export function parseCommand(raw:string):Command{
   case 'start':return {kind:'start'};
   case 'help':return {kind:'help'};
   case 'tutorial':case 'guide':return {kind:'tutorial'};
+  case 'paper':return {kind:'mode',set:'paper'};
+  case 'live':return {kind:'mode',set:'live'};
+  case 'mode':{
+   if(args.length===0)return {kind:'mode',set:null};
+   const want=args[0]!.toLowerCase();
+   if(want==='paper'||want==='live')return {kind:'mode',set:want};
+   return {kind:'usage',command:'mode'};
+  }
   case 'connect':return {kind:'connect'};
   case 'wallet':return {kind:'wallet'};
   case 'revoke':return {kind:'revoke'};

@@ -11,7 +11,7 @@ import type {Intent} from './intent';
 
 export type AppSurface=Pick<typeof app,
  'ensureUser'|'ensureWallet'|'setLimits'|'getLimits'|'revokeLimits'|
- 'setStrategy'|'getStrategy'|'scan'|'explain'|'buy'|'sell'|'positions'|'trending'|
+ 'setStrategy'|'getStrategy'|'setTradingMode'|'tradingMode'|'scan'|'explain'|'buy'|'sell'|'positions'|'trending'|
  'reconcilePositions'>;
 
 export type Sent={chatId:string;text:string;keyboard?:InlineKeyboard};

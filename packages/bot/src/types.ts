@@ -6,11 +6,18 @@ export type Lamports = bigint;
 
 export type UserId = string;
 
+/** 'paper' trades simulated funds at real quoted prices and never touches
+ *  the chain. 'live' spends the custodial wallet. New users start on paper. */
+export type TradingMode = 'paper' | 'live';
+
 export type User = {
  id: UserId;
  telegramChatId: string;
  telegramUsername: string | null;
  walletPubkey: string | null;
+ mode: TradingMode;
+ /** Simulated balance, in lamports. Meaningless in live mode. */
+ paperLamports: string;
  createdAt: string;
 };
 
@@ -169,6 +176,8 @@ export type Position = {
  exitSignature: string | null;
  exitLamports: string | null;
  reason: string;
+ /** A simulated fill. Never has a signature; the schema enforces it. */
+ paper: boolean;
  openedAt: string;
  closedAt: string | null;
 };
@@ -185,7 +194,11 @@ export type SwapQuote = {
 };
 
 export type SwapResult =
+ // Confirmed on chain. A signature is the proof, so success requires one.
  | { ok: true; signature: string; outAmount: string }
+ // Filled against a real quote, but simulated: no transaction exists, so
+ // there is no signature to show and callers are forced to notice.
+ | { ok: true; signature: null; paper: true; outAmount: string }
  | { ok: false; reason: string; signature: string | null };
 
 /** The result of a buy or sell. Denials arrive here, they are not thrown. */

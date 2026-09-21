@@ -43,6 +43,7 @@ export function help():string{
   'What I answer:',
   '/start — what this bot is and what it holds',
   '/tutorial — a seven step walkthrough of everything here',
+  '/mode — paper or live, or /paper and /live to switch',
   '/connect — link your x.com account (not available yet)',
   '/wallet — your deposit address and balance',
   '/limits — show limits, or /limits <max trade SOL> <daily cap SOL> <hours>',
@@ -65,9 +66,30 @@ const USAGE:Record<string,string>={
  why:'/why <mint> — the mint address of the token.',
  sell:'/sell <position id> — the id shown by /positions.',
  scan:'/scan, or /scan <how many>.',
+ mode:'/mode, or /mode paper, or /mode live.',
 };
 
 export const usage=(command:string):string=>USAGE[command]??help();
+
+export function mode(m:'paper'|'live',paperLamports:string):string{
+ if(m==='paper'){
+  return [
+   'Paper trading. Trades are simulated at live Jupiter quotes, so the '+
+   'prices and slippage are real and the SOL is not.',
+   '',
+   'Simulated balance: '+sol(paperLamports)+' SOL',
+   '',
+   'Nothing you do here touches your wallet or the chain. Switch with /live '+
+   'when you want real money, and set /limits first.',
+  ].join('\n');
+ }
+ return [
+  'Live trading. Trades spend the real SOL in your custodial wallet.',
+  '',
+  'Your limits still gate every trade, and /revoke stops all of it.',
+  'Switch back any time with /paper.',
+ ].join('\n');
+}
 
 export function limits(l:Limits|null):string{
  if(!l||!l.active)return 'No spending limits are set. Nothing can be spent until you set them with /limits.';

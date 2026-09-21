@@ -11,11 +11,15 @@ import type {
  Assessment, Candidate, Limits, Position, Strategy, StrategyMatch, TradeOutcome, User,
 } from './types';
 import {
- findCandidate, listPositions, passedCandidates, readLimits, readStrategy,
- deactivateLimits, upsertUser, writeLimits, writeStrategy,
+ findCandidate, findPosition, findUser, listPositions, openPosition,
+ paperBalance, passedCandidates, readLimits, readStrategy, setMode,
+ setPaperBalance, deactivateLimits, updatePosition, upsertUser, writeLimits,
+ writeStrategy,
 } from './db';
 import {balanceLamports, ensureKeypair, solToLamports} from './wallet/custody';
 import {buy as tradeBuy, reconcile, sell as tradeSell} from './trade/execute';
+import {paperBuy, paperSell} from './trade/paper';
+import {quote} from './trade/jupiter';
 import {dexscreener} from './market/dexscreener';
 import {compileStrategy} from './strategy/compile';
 import {matchStrategy} from './strategy/match';
@@ -169,6 +173,19 @@ export async function explain(mint:string):Promise<ScanRow|null>{
 /** Claims spend against veyro_claim_spend, then swaps SOL for the mint via
  *  Jupiter. Denials come back as result.ok === false with a named reason;
  *  they are not thrown. */
+/** Wiring for simulated trades. Deliberately assembled here rather than
+ *  imported inside paper.ts, so there is no path from the paper module to a
+ *  keypair or the spend ledger. */
+const paperDeps=()=>({
+ quote,
+ paperBalance,
+ setPaperBalance,
+ open:(p:{userId:string;mint:string;symbol:string;entryLamports:bigint})=>
+  openPosition({...p,strategyId:null,paper:true}),
+ update:updatePosition,
+ find:findPosition,
+});
+
 export async function buy(
  userId:string,
  mint:string,
@@ -177,11 +194,27 @@ export async function buy(
 ):Promise<TradeOutcome>{
  const known=await findCandidate(mint);
  const symbol=known?.candidate.symbol??mint.slice(0,4);
- return tradeBuy(userId,mint,solToLamports(sol),symbol,key);
+ const lamports=solToLamports(sol);
+ const user=await findUser(userId);
+ if(user?.mode!=='live')return paperBuy(userId,mint,lamports,symbol,paperDeps());
+ return tradeBuy(userId,mint,lamports,symbol,key);
 }
 
 export async function sell(userId:string,positionId:string,key:RequestKey):Promise<TradeOutcome>{
+ const position=await findPosition(positionId);
+ if(position?.paper)return paperSell(userId,positionId,paperDeps());
  return tradeSell(userId,positionId,key);
+}
+
+/** Switches between simulated and live trading. Open positions are untouched:
+ *  a paper position stays paper and a live one stays live. */
+export async function setTradingMode(userId:string,mode:'paper'|'live'){
+ return setMode(userId,mode);
+}
+
+export async function tradingMode(userId:string):Promise<{mode:'paper'|'live';paperLamports:string}>{
+ const user=await findUser(userId);
+ return {mode:user?.mode??'paper',paperLamports:user?.paperLamports??'0'};
 }
 
 export async function positions(userId:string,includeClosed:boolean):Promise<Position[]>{

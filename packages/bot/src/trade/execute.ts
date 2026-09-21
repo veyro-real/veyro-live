@@ -31,7 +31,7 @@ function phantom(userId:string,mint:string,symbol:string,lamports:bigint,reason:
   position:{
    id:'',userId,mint,symbol,status:'FAILED',entrySignature:null,
    entryLamports:lamports.toString(),tokensReceived:null,exitSignature:null,
-   exitLamports:null,reason,openedAt:new Date().toISOString(),closedAt:null,
+   exitLamports:null,reason,paper:false,openedAt:new Date().toISOString(),closedAt:null,
   },
   result:{ok:false,reason,signature:null},
  };

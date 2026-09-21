@@ -56,8 +56,31 @@ export async function setUserWallet(id:string,pubkey:string):Promise<void>{
 
 const rowToUser=(r:any):User=>({
  id:r.id,telegramChatId:r.telegram_chat_id,telegramUsername:r.telegram_username,
- walletPubkey:r.wallet_pubkey,createdAt:r.created_at,
+ walletPubkey:r.wallet_pubkey,
+ // Defaults mirror the migration, so a row read before it ran is still sane.
+ mode:r.mode==='live'?'live':'paper',
+ paperLamports:String(r.paper_lamports??'5000000000'),
+ createdAt:r.created_at,
 });
+
+export async function setMode(userId:string,mode:'paper'|'live'):Promise<User>{
+ const {data,error}=await db().from('veyro_users')
+  .update({mode}).eq('id',userId).select().single();
+ return rowToUser(ok(data,error,'SET_MODE'));
+}
+
+export async function paperBalance(userId:string):Promise<bigint>{
+ const {data,error}=await db().from('veyro_users')
+  .select('paper_lamports').eq('id',userId).single();
+ const row=ok(data,error,'PAPER_BALANCE');
+ return BigInt(row?.paper_lamports??'0');
+}
+
+export async function setPaperBalance(userId:string,lamports:bigint):Promise<void>{
+ const {error}=await db().from('veyro_users')
+  .update({paper_lamports:lamports.toString()}).eq('id',userId);
+ ok(null,error,'SET_PAPER_BALANCE');
+}
 
 // ---------------------------------------------------------------- limits
 
@@ -125,10 +148,12 @@ export async function settleSpend(reservationId:string,state:'SETTLED'|'RELEASED
 
 export async function openPosition(p:{
  userId:string;mint:string;symbol:string;entryLamports:bigint;strategyId:string|null;
+ paper?:boolean;
 }):Promise<Position>{
  const {data,error}=await db().from('veyro_positions').insert({
   user_id:p.userId,mint:p.mint,symbol:p.symbol,status:'OPENING',
-  entry_lamports:p.entryLamports.toString(),strategy_id:p.strategyId,reason:'SUBMITTING',
+  entry_lamports:p.entryLamports.toString(),strategy_id:p.strategyId,
+  paper:p.paper===true,reason:p.paper===true?'PAPER_FILLING':'SUBMITTING',
  }).select().single();
  return rowToPosition(ok(data,error,'OPEN_POSITION'));
 }
@@ -169,7 +194,7 @@ const rowToPosition=(r:any):Position=>({
  tokensReceived:r.tokens_received===null?null:String(r.tokens_received),
  exitSignature:r.exit_signature,
  exitLamports:r.exit_lamports===null?null:String(r.exit_lamports),
- reason:r.reason,openedAt:r.opened_at,closedAt:r.closed_at,
+ reason:r.reason,paper:r.paper===true,openedAt:r.opened_at,closedAt:r.closed_at,
 });
 
 // ---------------------------------------------------------------- candidates

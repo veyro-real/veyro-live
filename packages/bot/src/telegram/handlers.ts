@@ -31,6 +31,15 @@ type Handlers={
 function report(outcome:app.TradeOutcome,verb:string):string{
  const {position,result}=outcome;
  if(!result.ok)return render.denial(result.reason);
+ // A paper fill has no signature because no transaction exists. Printing an
+ // empty one would suggest a trade that can be looked up on chain.
+ if(result.signature===null){
+  return [
+   verb+' '+position.symbol+' on paper.',
+   'Simulated at a live quote. No transaction, no SOL moved.',
+   'Position: '+position.id,
+  ].join('\n');
+ }
  return [verb+' '+position.symbol+'.','Signature: '+result.signature,'Position: '+position.id].join('\n');
 }
 
@@ -41,6 +50,12 @@ export const handlers:Handlers={
    ? 'Balance: could not be read just now. Your funds are not affected; try again in a moment.'
    : 'Balance: '+render.sol(w.lamports)+' SOL';
   await send('Your deposit address:\n'+w.pubkey+'\n\n'+balance+'\n\n'+render.CUSTODY);
+ },
+
+ async mode(c,{userId,deps,send}){
+  if(c.set!==null)await deps.app.setTradingMode(userId,c.set);
+  const {mode,paperLamports}=await deps.app.tradingMode(userId);
+  await send(render.mode(mode,paperLamports));
  },
 
  async limits(c,{userId,deps,send}){
