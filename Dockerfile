@@ -4,7 +4,7 @@ FROM node:24-bookworm-slim AS build
 WORKDIR /app
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@10.17.1 --activate
 
 # Manifests first: these change far less often than source, so the install
 # layer survives most rebuilds.
@@ -26,7 +26,10 @@ WORKDIR /app
 ENV NODE_ENV=production HOSTNAME=0.0.0.0 PORT=3000
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
-RUN corepack enable
+# --activate bakes the binary in. Without it corepack fetches pnpm from
+# npmjs on every container start, putting a network round trip and a
+# supply-chain download on the boot path of a production service.
+RUN corepack enable && corepack prepare pnpm@10.17.1 --activate
 
 # The workers run from source through tsx, so they need the installed
 # workspace rather than the control plane's traced bundle.

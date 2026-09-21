@@ -22,6 +22,17 @@ test('the control plane migrates before it serves',async()=>{
  assert.match(entry,/set -eu/,'without set -e a failed migration would be ignored');
 });
 
+test('the image bakes pnpm in rather than fetching it at boot',async()=>{
+ const docker=await readFile('Dockerfile','utf8');
+ const root=JSON.parse(await readFile('package.json','utf8'));
+ const prepares=docker.match(/corepack prepare (\S+) --activate/g)??[];
+ assert.equal(prepares.length,2,'both stages must pin pnpm');
+ for(const line of prepares){
+  assert.ok(line.includes(root.packageManager),
+   `${line} disagrees with packageManager ${root.packageManager}`);
+ }
+});
+
 test('the image installs from the pnpm lockfile, frozen',async()=>{
  const docker=await readFile('Dockerfile','utf8');
  assert.match(docker,/pnpm-lock\.yaml/);
