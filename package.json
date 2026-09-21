@@ -2,28 +2,21 @@
   "name": "veyro-live",
   "version": "0.1.0",
   "private": true,
-  "scripts": {
-    "dev": "next dev --hostname 127.0.0.1",
-    "build": "next build --webpack",
-    "start": "next start --hostname 0.0.0.0",
-    "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test tests/*.test.mts",
-    "worker": "node --env-file-if-exists=.env.local --import tsx worker/feed.ts"
+  "packageManager": "pnpm@10.17.1",
+  "engines": {
+    "node": ">=22"
   },
-  "dependencies": {
-    "@solana/web3.js": "^1.99.0",
-    "@supabase/supabase-js": "^2.116.0",
-    "@veyro/core": "file:vendor/veyro-core",
-    "@veyro/sdk": "file:vendor/veyro-sdk",
-    "next": "16.3.0",
-    "react": "19.2.8",
-    "react-dom": "19.2.8"
+  "scripts": {
+    "dev": "pnpm --filter @veyro/control-plane dev",
+    "build": "pnpm -r --if-present build",
+    "start": "pnpm --filter @veyro/control-plane start",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "node --import tsx --test tests/*.test.mts && pnpm -r --if-present test",
+    "worker": "pnpm --filter @veyro/market-worker start"
   },
   "devDependencies": {
-    "@types/node": "22.20.1",
-    "@types/react": "19.2.17",
-    "@types/react-dom": "19.2.3",
     "tsx": "4.23.9",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "@types/node": "22.20.1"
   }
 }

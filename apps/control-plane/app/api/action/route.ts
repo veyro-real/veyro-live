@@ -1,0 +1,5 @@
+import {authorize,readBody,validateOrigin} from '@veyro/bot/auth';
+import {act} from '@veyro/bot/engine';
+import {getState,saveState,beginAttempt,recordAttempt} from '@veyro/bot/store';
+export const runtime='nodejs';export const dynamic='force-dynamic';
+export async function POST(req:Request){let session:string|undefined;try{validateOrigin(req);const auth=authorize(req);session=auth.session;const now=Date.now();const last=await getState<number>('rate:'+session)||0;if(now-last<800)throw Error('RATE_LIMITED');await saveState('rate:'+session,now);const body=await readBody(req);return Response.json(await act(session,body,auth.operator),{headers:{'Cache-Control':'no-store'}});}catch(e){const error=(e as Error).message;if(session && /JSON|REQUEST_TOO_LARGE|EMPTY_REQUEST|REQUEST_ID_REQUIRED/.test(error)){const a=await beginAttempt(session,'invalid-request',{error});a.decision='DENY';a.reason='MALFORMED_REQUEST';a.status='DENIED';await recordAttempt(session,a);}return Response.json({error},{status:error==='UNAUTHORIZED'?401:error==='RATE_LIMITED'?429:400});}}

@@ -10,14 +10,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: corepack enable
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
-      - run: npm ci
-      - run: npm run typecheck
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
       # Voice tests detect their own host: synthesis needs macOS `say` and
       # transcription needs a local whisper model, so both skip here rather
       # than fail. Everything else runs.
-      - run: npm test
-      - run: npm run build
+      - run: pnpm test
+      - run: pnpm build
+      # The workspace has one package manager. A reintroduced npm command or
+      # lockfile would install a second dependency tree that nothing else uses.
+      - name: No npm leftovers
+        run: |
+          # Bracketed so this line does not match its own pattern.
+          if git grep -nE 'npm[ ]ci|package-lock[.]json' -- .github Dockerfile package.json; then
+            echo "::error::npm command or lockfile reintroduced; this workspace installs with pnpm"
+            exit 1
+          fi
