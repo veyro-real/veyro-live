@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-const {telegramApi}=await import('../lib/telegram/api');
+const {telegramApi}=await import('../src/telegram/api');
 
 type Call={url:string;body:any};
 function fakeFetch(reply:unknown={ok:true,result:{}},status=200){

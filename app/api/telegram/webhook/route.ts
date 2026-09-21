@@ -4,17 +4,17 @@
 // validateOrigin() from lib/auth is deliberately absent. Telegram is a
 // third-party caller; the secret token is the authentication.
 
-import * as app from '../../../../lib/app';
-import {claimTelegramUpdate} from '../../../../lib/db';
-import {resolveImage} from '../../../../lib/market/metadata';
-import {setVoiceEnabled,voiceEnabled} from '../../../../lib/voice/prefs';
-import {speaker} from '../../../../lib/voice/tts';
-import {transcriber} from '../../../../lib/voice/transcribe';
-import {actionStore} from '../../../../lib/voice/actions';
-import {telegramApi,telegramFiles} from '../../../../lib/telegram/api';
-import {pendingStore} from '../../../../lib/telegram/pending';
-import {route} from '../../../../lib/telegram/router';
-import {handleUpdate} from '../../../../lib/telegram/webhook';
+import * as app from '@veyro/bot/app';
+import {claimTelegramUpdate} from '@veyro/bot/db';
+import {resolveImage} from '@veyro/bot/market/metadata';
+import {setVoiceEnabled,voiceEnabled} from '@veyro/bot/voice/prefs';
+import {speaker} from '@veyro/bot/voice/tts';
+import {transcriber} from '@veyro/bot/voice/transcribe';
+import {actionStore} from '@veyro/bot/voice/actions';
+import {telegramApi,telegramFiles} from '@veyro/bot/telegram/api';
+import {pendingStore} from '@veyro/bot/telegram/pending';
+import {route} from '@veyro/bot/telegram/router';
+import {handleUpdate} from '@veyro/bot/telegram/webhook';
 
 export const runtime='nodejs';export const dynamic='force-dynamic';
 

@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-const {parseTradeMessage}=await import('../lib/market/trades');
+const {parseTradeMessage}=await import('../src/market/trades');
 
 const MINT='Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB';
 const buy={

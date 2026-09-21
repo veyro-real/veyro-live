@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-const {parseCommand}=await import('../lib/telegram/parse');
+const {parseCommand}=await import('../src/telegram/parse');
 
 const MINT='Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB';
 

@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-const {parseBoost,parsePair}=await import('../lib/market/dexscreener');
+const {parseBoost,parsePair}=await import('../src/market/dexscreener');
 
 const MINT='CDAC33JvozJ1UjxBMkvZgJcVXoxdH9iGxeBXUJdXpump';
 const SOL='So11111111111111111111111111111111111111112';

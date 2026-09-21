@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-const {intentFromSpeech}=await import('../lib/telegram/intent');
+const {intentFromSpeech}=await import('../src/telegram/intent');
 
 const k=(t:string)=>intentFromSpeech(t)?.kind;
 

@@ -5,15 +5,15 @@
 // judges them, the heartbeat notices silence. This file connects a socket
 // to those and does nothing else, which is what makes them testable.
 
-import {recordAssessment,recordCandidate} from '../lib/db';
-import {readMintFacts,rpcReader} from '../lib/market/features';
-import {createHeartbeat} from '../lib/market/heartbeat';
-import {createObserver} from '../lib/market/observer';
-import {createDrainer,type SettleDeps} from '../lib/market/settle';
+import {recordAssessment,recordCandidate} from '@veyro/bot/db';
+import {readMintFacts,rpcReader} from '@veyro/bot/market/features';
+import {createHeartbeat} from '@veyro/bot/market/heartbeat';
+import {createObserver} from '@veyro/bot/market/observer';
+import {createDrainer,type SettleDeps} from '@veyro/bot/market/settle';
 import {
  SUBSCRIPTIONS,handleFeedMessage,unwatchTrades,watchTrades,type IngestDeps,
-} from '../lib/market/ingest';
-import {telegramApi} from '../lib/telegram/api';
+} from '@veyro/bot/market/ingest';
+import {telegramApi} from '@veyro/bot/telegram/api';
 
 const WS_URL=process.env.PUMPPORTAL_WS_URL||'wss://pumpportal.fun/api/data';
 const WINDOW_MS=Number(process.env.VEYRO_OBSERVE_MS||60_000);

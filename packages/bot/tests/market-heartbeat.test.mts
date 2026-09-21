@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-const {createHeartbeat}=await import('../lib/market/heartbeat');
+const {createHeartbeat}=await import('../src/market/heartbeat');
 
 const T0=1_000_000_000_000;
 const hb=()=>createHeartbeat({quietMs:300_000});

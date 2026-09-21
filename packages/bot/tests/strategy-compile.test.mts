@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-const {compileStrategy}=await import('../lib/strategy/compile');
+const {compileStrategy}=await import('../src/strategy/compile');
 
 test('an empty edge is conservative and never trades on its own',()=>{
  const c=compileStrategy('');

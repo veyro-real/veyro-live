@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-const {handleUpdate}=await import('../lib/telegram/webhook');
-import type {WebhookDeps} from '../lib/telegram/webhook';
+const {handleUpdate}=await import('../src/telegram/webhook');
+import type {WebhookDeps} from '../src/telegram/webhook';
 
 const SECRET='s'.repeat(40);
 

@@ -10,13 +10,14 @@
     "dev": "next dev --hostname 127.0.0.1",
     "build": "next build --webpack",
     "start": "next start --hostname 0.0.0.0",
-    "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test tests/*.test.mts",
+    "typecheck": "tsc --noEmit && pnpm -r --if-present typecheck",
+    "test": "node --import tsx --test tests/*.test.mts && pnpm -r --if-present test",
     "worker": "node --env-file-if-exists=.env.local --import tsx worker/feed.ts"
   },
   "dependencies": {
     "@solana/web3.js": "^1.99.0",
     "@supabase/supabase-js": "^2.116.0",
+    "@veyro/bot": "workspace:*",
     "@veyro/core": "file:vendor/veyro-core",
     "@veyro/sdk": "file:vendor/veyro-sdk",
     "next": "16.3.0",

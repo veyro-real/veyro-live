@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-const {createObserver}=await import('../lib/market/observer');
-import type {Trade} from '../lib/market/trades';
-import type {Candidate} from '../lib/types';
+const {createObserver}=await import('../src/market/observer');
+import type {Trade} from '../src/market/trades';
+import type {Candidate} from '../src/types';
 
 const T0=1_000_000_000_000;
 const cand=(mint:string):Candidate=>({

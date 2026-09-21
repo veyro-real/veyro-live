@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-const {readMintFacts,buildFeatures}=await import('../lib/market/features');
-import type {ChainReader} from '../lib/market/features';
-import type {Candidate} from '../lib/types';
+const {readMintFacts,buildFeatures}=await import('../src/market/features');
+import type {ChainReader} from '../src/market/features';
+import type {Candidate} from '../src/types';
 
 const MINT='Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB';
 const CURVE='8SgNwESovnbG1oNEaPVhg6CR9mTMSK7jPvcYRe3wpump';

@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-const {postTrade,postRejectionDigest,postReply,LIMIT}=await import('../lib/x/compose');
-import type {Position} from '../lib/types';
+const {postTrade,postRejectionDigest,postReply,LIMIT}=await import('../src/x/compose');
+import type {Position} from '../src/types';
 
 const MINT='EnGnwy5koQkE8i2HLAfmNqyCmjdPhyG12yyPutTQpump';
 const filled=(o:Partial<Position>={}):Position=>({

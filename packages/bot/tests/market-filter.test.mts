@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-const {assess}=await import('../lib/market/filter');
-import type {Candidate,Features} from '../lib/types';
+const {assess}=await import('../src/market/filter');
+import type {Candidate,Features} from '../src/types';
 
 const candidate=(o:Partial<Candidate>={}):Candidate=>({
  mint:'M',symbol:'WIF',name:'dogwifhat',launchpad:'pump.fun',creator:'C',

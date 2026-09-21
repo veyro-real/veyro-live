@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-const {flowFeatures}=await import('../lib/market/flow');
-import type {Trade} from '../lib/market/trades';
+const {flowFeatures}=await import('../src/market/flow');
+import type {Trade} from '../src/market/trades';
 
 const T0=1_000_000_000_000;
 const MINT='M';

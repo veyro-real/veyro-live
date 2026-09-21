@@ -2,7 +2,7 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {execFile} from 'node:child_process';import {promisify} from 'node:util';
 import {mkdtemp,readFile,rm} from 'node:fs/promises';import {tmpdir} from 'node:os';import {join} from 'node:path';
 const run=promisify(execFile);
-const {whisperTranscriber,transcriber}=await import('../lib/voice/transcribe');
+const {whisperTranscriber,transcriber}=await import('../src/voice/transcribe');
 
 const t=whisperTranscriber();
 const canRun=await t.available();

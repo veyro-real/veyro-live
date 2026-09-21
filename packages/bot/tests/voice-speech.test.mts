@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-const {speakable,spokenConfirm,spokenScan,MAX_SPOKEN}=await import('../lib/voice/speech');
+const {speakable,spokenConfirm,spokenScan,MAX_SPOKEN}=await import('../src/voice/speech');
 
 const MINT='EnGnwy5koQkE8i2HLAfmNqyCmjdPhyG12yyPutTQpump';
 const ROW={

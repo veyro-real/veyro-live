@@ -1,8 +1,8 @@
 // Public dependency health. No auth: a status page has to be able to read it
 // while signed out, and nothing here is sensitive -- lib/health scrubs every
 // detail before it leaves.
-import {probe} from '../../../lib/health';
-import {db} from '../../../lib/db';
+import {probe} from '@veyro/bot/health';
+import {db} from '@veyro/bot/db';
 
 export const runtime='nodejs';export const dynamic='force-dynamic';
 

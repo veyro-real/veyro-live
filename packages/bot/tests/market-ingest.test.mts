@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-const {handleFeedMessage,SUBSCRIPTIONS}=await import('../lib/market/ingest');
-import type {IngestDeps} from '../lib/market/ingest';
+const {handleFeedMessage,SUBSCRIPTIONS}=await import('../src/market/ingest');
+import type {IngestDeps} from '../src/market/ingest';
 
 const MINT='Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB';
 const create={

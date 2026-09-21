@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 process.env.VEYRO_STORE='memory';
-const {pendingStore}=await import('../lib/telegram/pending');
+const {pendingStore}=await import('../src/telegram/pending');
 
 const BUY={userId:'u-1',chatId:'99',mint:'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',sol:0.25};
 

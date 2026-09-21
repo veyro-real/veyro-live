@@ -1,9 +1,9 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-const {settleWatch,createDrainer}=await import('../lib/market/settle');
-const {createObserver}=await import('../lib/market/observer');
-import type {SettleDeps} from '../lib/market/settle';
-import type {Candidate} from '../lib/types';
-import type {Trade} from '../lib/market/trades';
+const {settleWatch,createDrainer}=await import('../src/market/settle');
+const {createObserver}=await import('../src/market/observer');
+import type {SettleDeps} from '../src/market/settle';
+import type {Candidate} from '../src/types';
+import type {Trade} from '../src/market/trades';
 
 const T0=1_000_000_000_000;
 const MINT='M1';

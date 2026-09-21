@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-const {probe}=await import('../lib/health');
+const {probe}=await import('../src/health');
 
 test('a passing probe reports ok with a duration',async()=>{
  const h=await probe({supabase:async()=>'reachable'});

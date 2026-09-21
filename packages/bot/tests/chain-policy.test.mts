@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-const P=await import('../lib/chain/policy');
+const P=await import('../src/chain/policy');
 const {PublicKey}=await import('@solana/web3.js');
 
 const OWNER=new PublicKey('4Nd1mRSpVtFvTvW1vBcLE2ZSDCWuVQKbSMU9ZSAgzKcf');

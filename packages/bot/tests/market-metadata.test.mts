@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-const {resolveImage,ipfsToHttps}=await import('../lib/market/metadata');
+const {resolveImage,ipfsToHttps}=await import('../src/market/metadata');
 
 const json=(body:unknown,status=200)=>((async()=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json'}})) as unknown as typeof fetch);
 

@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-const {parseFeedMessage}=await import('../lib/market/pumpportal');
+const {parseFeedMessage}=await import('../src/market/pumpportal');
 
 const create={
  signature:'sig1',mint:'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',

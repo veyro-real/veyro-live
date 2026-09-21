@@ -1,5 +1,5 @@
-import {authorize,readBody,validateOrigin} from '../../../../lib/auth';
-import {credentialStatus,setCredential,type CredentialName} from '../../../../lib/credentials';
+import {authorize,readBody,validateOrigin} from '@veyro/bot/auth';
+import {credentialStatus,setCredential,type CredentialName} from '@veyro/bot/credentials';
 export const runtime='nodejs';export const dynamic='force-dynamic';
 const allowed=new Set<CredentialName>(['xBearerToken','jupiterApiKey','mainnetRpcUrl']);
 export async function GET(req:Request){

@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-const {route}=await import('../lib/telegram/router');
-import type {Deps,Sent} from '../lib/telegram/router';
+const {route}=await import('../src/telegram/router');
+import type {Deps,Sent} from '../src/telegram/router';
 
 const MINT='Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB';
 const USER={id:'u-1',telegramChatId:'99',telegramUsername:'jeremy',walletPubkey:'Wa11et',createdAt:'2026-09-20T00:00:00Z'};

@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-const {macSpeaker,speaker}=await import('../lib/voice/tts');
+const {macSpeaker,speaker}=await import('../src/voice/tts');
 
 const mac=macSpeaker();
 const canRun=await mac.available();

@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-const {decideExit,NO_EXIT_RULES}=await import('../lib/trade/exit');
-import type {ExitRules} from '../lib/trade/exit';
+const {decideExit,NO_EXIT_RULES}=await import('../src/trade/exit');
+import type {ExitRules} from '../src/trade/exit';
 
 const SOL=1_000_000_000n;
 const base=(o:Partial<Parameters<typeof decideExit>[0]>={})=>({

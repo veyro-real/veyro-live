@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-const {matchStrategy}=await import('../lib/strategy/match');
-const {compileStrategy}=await import('../lib/strategy/compile');
-import type {Assessment,Candidate,Features,Strategy} from '../lib/types';
+const {matchStrategy}=await import('../src/strategy/match');
+const {compileStrategy}=await import('../src/strategy/compile');
+import type {Assessment,Candidate,Features,Strategy} from '../src/types';
 
 const features=(over:Partial<Features>={}):Features=>({
  ageSeconds:10,holders:100,top10Pct:10,creatorLaunchCount:1,creatorGraduationCount:1,
