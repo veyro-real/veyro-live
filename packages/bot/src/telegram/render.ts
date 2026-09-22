@@ -27,6 +27,8 @@ const DENIALS:Record<string,string>={
  LIMITS_REVOKED:'Your spending limits are revoked. Set them again with /limits.',
  LIMITS_EXPIRED:'Your spending limits have expired. Set them again with /limits.',
  MAX_TRADE_EXCEEDED:'That is larger than your per-trade maximum.',
+ ABOVE_HARD_CAP:'That is over the hard cap set for this deployment. Your own '+
+  'limits cannot raise it — an operator sets it outside the bot.',
  DAILY_CAP_EXCEEDED:'That would pass your daily cap for today.',
  INSUFFICIENT_BALANCE:'Your wallet does not hold enough SOL for that.',
  INVALID_AMOUNT:'That amount is not valid.',

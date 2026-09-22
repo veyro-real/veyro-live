@@ -22,6 +22,31 @@ import {SOL_MINT,buildSwap,confirm,quote,signSimulateSend,tokensReceived} from '
 
 const tradingEnabled=()=>process.env.VEYRO_TRADING_ENABLED==='true';
 
+/**
+ * A ceiling no /limits command can raise.
+ *
+ * veyro_claim_spend enforces the limits a user set for themselves, which
+ * means a user can also raise them. This is the operator's bound on a
+ * deployment and it lives outside Telegram: nothing sent to the bot can
+ * widen it, so the worst case of a misheard amount, a bad rate or a wrong
+ * limits command stays inside a number chosen here.
+ *
+ * Deliberately lamports rather than dollars: a price feed that fails must
+ * never be able to fail this open.
+ */
+const DEFAULT_HARD_MAX_LAMPORTS=6_000_000n; // ~0.006 SOL
+
+function hardMaxLamports():bigint{
+ const raw=process.env.VEYRO_HARD_MAX_TRADE_LAMPORTS;
+ if(!raw)return DEFAULT_HARD_MAX_LAMPORTS;
+ try{
+  const n=BigInt(raw);
+  return n>0n?n:DEFAULT_HARD_MAX_LAMPORTS;
+ }catch{
+  return DEFAULT_HARD_MAX_LAMPORTS;
+ }
+}
+
 const denied=(position:Position,reason:string):TradeOutcome=>
  ({position,result:{ok:false,reason,signature:null}});
 
@@ -42,6 +67,9 @@ export async function buy(
 ):Promise<TradeOutcome>{
  if(!tradingEnabled())return phantom(userId,mint,symbol,lamports,'TRADING_DISABLED');
  if(mint===SOL_MINT)return phantom(userId,mint,symbol,lamports,'CANNOT_BUY_SOL');
+ // Before the request claim: an amount over the ceiling is refused outright
+ // and never consumes an idempotency key it would only have to release.
+ if(lamports>hardMaxLamports())return phantom(userId,mint,symbol,lamports,'ABOVE_HARD_CAP');
 
  // Redelivered Telegram update, or a retry. Never opens a second position.
  const claimed=await claimRequest(userId,'buy:'+key);
