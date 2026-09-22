@@ -28,6 +28,22 @@ export type {AppSurface,Deps,Outbox,PendingAction,PendingActionStore,PendingBuy,
 
 
 
+/**
+ * A spoken amount as SOL, with the conversion to show alongside it.
+ *
+ * The user said one number and the confirmation is about to show a different
+ * one, so the rate is stated rather than applied silently. Null means no rate
+ * could be read, which is a refusal and never a fallback amount.
+ */
+async function amountSol(
+ intent:{sol:number}|{usd:number},deps:Deps,
+):Promise<{sol:number;note:string}|null>{
+ if(!('usd' in intent))return {sol:intent.sol,note:''};
+ const sol=await deps.usdToSol(intent.usd);
+ if(sol===null)return null;
+ return {sol,note:'\n\n$'+intent.usd+' is about '+sol.toFixed(4)+' SOL at the current rate.'};
+}
+
 /** Spoken asks that change nothing, so they need no confirmation. */
 const readOnly=(i:Intent):boolean=>
  i.kind==='wallet'||i.kind==='positions'||i.kind==='scan'||i.kind==='help'||
@@ -184,20 +200,28 @@ async function onVoice(update:TelegramUpdate,deps:Deps):Promise<void>{
   return runCommand(intent as Command,ctx(user.id,chatId,key,deps));
  }
 
- if(intent.kind==='buyTrending'){
-  // No symbol was named, so take the loudest thing and show it in full.
-  // The trade still has to be confirmed like any other.
-  const rows=await deps.app.trending(1);
-  if(rows.length===0){
-   return void await send(heard+'\n\nNothing is trending right now, so there is '+
-    'nothing for me to pick. Try /trending in a moment.');
+ if(intent.kind==='buyTrending'||intent.kind==='buyBySymbol'){
+  // Nobody speaks in lamports, so a dollar amount is converted here, once,
+  // and everything downstream is an ordinary SOL-denominated trade.
+  const priced=await amountSol(intent,deps);
+  if(priced===null){
+   return void await send(heard+'\n\nI could not read a SOL price just now, so I '+
+    'do not know what that is in SOL. Say an amount in SOL, or try again shortly.');
   }
-  await send(heard);
-  return runCommand({kind:'buy',mint:rows[0].mint,sol:intent.sol},
-   ctx(user.id,chatId,key,deps));
- }
+  const {sol,note}=priced;
 
- if(intent.kind==='buyBySymbol'){
+  if(intent.kind==='buyTrending'){
+   // No symbol was named, so take the loudest thing and show it in full.
+   // The trade still has to be confirmed like any other.
+   const rows=await deps.app.trending(1);
+   if(rows.length===0){
+    return void await send(heard+'\n\nNothing is trending right now, so there is '+
+     'nothing for me to pick. Try /trending in a moment.');
+   }
+   await send(heard+note);
+   return runCommand({kind:'buy',mint:rows[0].mint,sol},ctx(user.id,chatId,key,deps));
+  }
+
   // A 44-character mint cannot be dictated, so a spoken buy names a symbol
   // and we resolve it against what the feed has actually seen.
   const rows=await deps.app.scan(user.id,25);
@@ -206,9 +230,9 @@ async function onVoice(update:TelegramUpdate,deps:Deps):Promise<void>{
    return void await send(heard+'\n\nI have not seen a candidate called '+intent.symbol+
     '. /scan lists what passed the filter.');
   }
-  await send(heard);
+  await send(heard+note);
   // Falls into the normal buy path, so the trade keeps its own confirmation.
-  return runCommand({kind:'buy',mint:hit.candidate.mint,sol:intent.sol},ctx(user.id,chatId,key,deps));
+  return runCommand({kind:'buy',mint:hit.candidate.mint,sol},ctx(user.id,chatId,key,deps));
  }
 
  const id=randomBytes(6).toString('hex');

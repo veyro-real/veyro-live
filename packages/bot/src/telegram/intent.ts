@@ -14,7 +14,9 @@ import {parseCommand,type Command} from './parse';
 
 export type Intent=Command
  |{kind:'buyBySymbol';symbol:string;sol:number}
- |{kind:'buyTrending';sol:number};
+ |{kind:'buyBySymbol';symbol:string;usd:number}
+ |{kind:'buyTrending';sol:number}
+ |{kind:'buyTrending';usd:number};
 
 /** Whisper reliably hears SOL as "sold", "soul" or "sole". */
 const normalise=(raw:string):string=>raw
@@ -30,6 +32,67 @@ const num=(s:string|undefined):number|null=>{
  const n=Number(s);
  return Number.isFinite(n)&&n>0?n:null;
 };
+
+const ONES:Record<string,number>={one:1,two:2,three:3,four:4,five:5,six:6,seven:7,
+ eight:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,
+ sixteen:16,seventeen:17,eighteen:18,nineteen:19};
+const TENS:Record<string,number>={twenty:20,thirty:30,forty:40,fifty:50,sixty:60,
+ seventy:70,eighty:80,ninety:90};
+
+/**
+ * "one hundred" to 100. Spoken amounts arrive as words, and an amount is the
+ * one thing in a trade that must never be approximated, so an unrecognised
+ * word ends the number rather than being skipped over.
+ */
+export function spokenNumber(phrase:string):number|null{
+ let total=0,current=0,seen=false;
+ for(const word of phrase.split(/[\s-]+/).filter(Boolean)){
+  if(word in ONES){current+=ONES[word];seen=true;}
+  else if(word in TENS){current+=TENS[word];seen=true;}
+  else if(word==='hundred'){current=(current||1)*100;seen=true;}
+  else if(word==='thousand'){total+=(current||1)*1000;current=0;seen=true;}
+  else if(word==='and'&&seen)continue;
+  else if(word==='a'&&!seen)continue; // "a hundred dollars"
+  else return null;
+ }
+ const n=total+current;
+ return seen&&n>0?n:null;
+}
+
+const MONEY='(?:dollars?|bucks|usd)';
+
+/**
+ * The words immediately before a unit, as a number.
+ *
+ * "buy fifty dollars" captures "buy fifty", so the longest suffix that parses
+ * wins: the surrounding sentence is discarded rather than failing the amount.
+ */
+function wordsBefore(t:string,unit:string):number|null{
+ const m=t.match(new RegExp('((?:[a-z]+[\\s-]){1,4})'+unit));
+ if(!m)return null;
+ const parts=m[1].trim().split(/[\s-]+/);
+ for(let i=0;i<parts.length;i++){
+  const n=spokenNumber(parts.slice(i).join(' '));
+  if(n!==null)return n;
+ }
+ return null;
+}
+
+/** A dollar amount anywhere in the utterance, digits or words. */
+function usdFrom(t:string):number|null{
+ const digits=t.match(new RegExp('\\$\\s*([\\d.]+)|([\\d.]+)\\s*'+MONEY));
+ if(digits)return num(digits[1]??digits[2]);
+ return wordsBefore(t,MONEY);
+}
+
+/** A SOL amount, in digits or words. */
+function solFrom(t:string):number|null{
+ const digits=num(t.match(/([\d.]+)\s*sol\b/)?.[1]);
+ return digits!==null?digits:wordsBefore(t,'sol\\b');
+}
+
+/** "the dumbest memecoin", "the best solana meme coin": a pick, not a symbol. */
+const TRENDING=/dumbest|trending|whatever is hot|top meme|best(?:\s+\w+){0,2}\s+meme/;
 
 export function intentFromSpeech(raw:string):Intent|null{
  const t=normalise(raw);
@@ -66,11 +129,22 @@ export function intentFromSpeech(raw:string):Intent|null{
  if(edge)return {kind:'edge',text:edge[1].trim()};
 
  if(/\bbuy\b/.test(t)){
-  const amount=num(t.match(/buy\s+([\d.]+)\s*sol/)?.[1]);
-  // "the dumbest memecoin", "whatever is trending": no symbol, just a pick.
-  if(/dumbest|trending|whatever is hot|top meme/.test(t)){
-   return amount===null?null:{kind:'buyTrending',sol:amount};
+  // Dollars first: "buy one hundred dollars of X" names its unit explicitly,
+  // where a bare number after "buy" has always meant SOL.
+  const usd=usdFrom(t);
+
+  // No symbol, just a pick. The trade is still confirmed like any other.
+  if(TRENDING.test(t)){
+   if(usd!==null)return {kind:'buyTrending',usd};
+   const sol=solFrom(t);
+   return sol===null?null:{kind:'buyTrending',sol};
   }
+
+  if(usd!==null){
+   const m=t.match(/(?:worth of|of)\s+([a-z0-9]{2,15})\b/);
+   return m?{kind:'buyBySymbol',symbol:m[1],usd}:null;
+  }
+
   const m=t.match(/buy\s+([\d.]+)\s*sol\s+(?:of\s+|worth of\s+)?([a-z0-9]{2,15})\b/);
   const sol=num(m?.[1]);
   if(!m||sol===null)return null; // No amount, no trade.

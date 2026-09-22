@@ -53,6 +53,9 @@ export type Deps={
  pending:PendingStore;
  /** Token metadata uri to a displayable image url, or null. */
  image(uri:string|null):Promise<string|null>;
+ /** A spoken dollar amount as SOL at a live rate, or null when no rate can
+  *  be read. Null is a refusal: a trade is never sized off a guessed rate. */
+ usdToSol(usd:number):Promise<number|null>;
  voice:{
   enabled(userId:string):Promise<boolean>;
   setEnabled(userId:string,on:boolean):Promise<void>;

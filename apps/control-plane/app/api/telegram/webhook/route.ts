@@ -12,6 +12,8 @@ import {speaker} from '@veyro/bot/voice/tts';
 import {transcriber} from '@veyro/bot/voice/transcribe';
 import {actionStore} from '@veyro/bot/voice/actions';
 import {telegramApi,telegramFiles} from '@veyro/bot/telegram/api';
+import {quote} from '@veyro/bot/trade/jupiter';
+import {usdToSolOrNull} from '@veyro/bot/trade/price';
 import {pendingStore} from '@veyro/bot/telegram/pending';
 import {route} from '@veyro/bot/telegram/router';
 import {handleUpdate} from '@veyro/bot/telegram/webhook';
@@ -31,6 +33,7 @@ export async function POST(req:Request):Promise<Response>{
   route:update=>route(update,{
    app,out,pending,
    image:uri=>resolveImage(uri),
+   usdToSol:usd=>usdToSolOrNull(usd,{quote}),
    voice:{
     enabled:voiceEnabled,setEnabled:setVoiceEnabled,
     say:text=>tts.synthesize(text),

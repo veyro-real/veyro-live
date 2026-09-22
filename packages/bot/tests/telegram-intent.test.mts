@@ -89,3 +89,62 @@ test('a named symbol still wins over the trending shortcut',()=>{
  assert.deepEqual(intentFromSpeech('buy 0.05 sol of wif'),
   {kind:'buyBySymbol',symbol:'wif',sol:0.05});
 });
+
+// Dollars. Limits and positions are lamports, but nobody speaks in lamports.
+
+test('the demo sentence, said the way a person says it',()=>{
+ assert.deepEqual(
+  intentFromSpeech('Find the best Solana meme coin and buy one hundred dollars.'),
+  {kind:'buyTrending',usd:100});
+});
+
+test('a dollar amount is understood as digits, symbol or words',()=>{
+ for(const said of [
+  'buy $100 of the dumbest memecoin',
+  'buy 100 dollars of the dumbest memecoin',
+  'buy one hundred dollars of the dumbest memecoin',
+  'buy a hundred bucks of the dumbest memecoin',
+ ]){
+  assert.deepEqual(intentFromSpeech(said),{kind:'buyTrending',usd:100},said);
+ }
+});
+
+test('dollars work for a named symbol too',()=>{
+ assert.deepEqual(intentFromSpeech('buy fifty dollars of wif'),
+  {kind:'buyBySymbol',symbol:'wif',usd:50});
+ assert.deepEqual(intentFromSpeech('buy $25 worth of doge'),
+  {kind:'buyBySymbol',symbol:'doge',usd:25});
+});
+
+test('spoken numbers cover the range a person would actually say',async()=>{
+ const {spokenNumber}=await import('../src/telegram/intent');
+ assert.equal(spokenNumber('one hundred'),100);
+ assert.equal(spokenNumber('two hundred and fifty'),250);
+ assert.equal(spokenNumber('twenty five'),25);
+ assert.equal(spokenNumber('a thousand'),1000);
+ assert.equal(spokenNumber('fifteen'),15);
+});
+
+test('a number that was half heard is refused, not rounded to something',async()=>{
+ const {spokenNumber}=await import('../src/telegram/intent');
+ for(const junk of ['','hundredish','one skwrbl','zero','and']){
+  assert.equal(spokenNumber(junk),null,JSON.stringify(junk));
+ }
+});
+
+test('dollars with no number in them buy nothing',()=>{
+ assert.equal(intentFromSpeech('buy some dollars of wif'),null);
+ assert.equal(intentFromSpeech('buy dollars of the dumbest memecoin'),null);
+});
+
+test('a dollar buy still needs something to buy',()=>{
+ assert.equal(intentFromSpeech('buy one hundred dollars'),null,
+  'no symbol and no pick is not a trade');
+});
+
+test('sol amounts are untouched by the dollar path',()=>{
+ assert.deepEqual(intentFromSpeech('buy 0.1 sol of wif'),
+  {kind:'buyBySymbol',symbol:'wif',sol:0.1});
+ assert.deepEqual(intentFromSpeech('buy 0.05 sol of whatever is trending'),
+  {kind:'buyTrending',sol:0.05});
+});

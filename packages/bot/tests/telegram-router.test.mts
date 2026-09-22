@@ -16,6 +16,7 @@ function harness(app:Partial<Deps['app']>={}){
  const photos:{chatId:string;url:string;caption:string;keyboard?:any}[]=[];
  const voices:Buffer[]=[];let voiceOn=false;
  const actionStore=new Map<string,unknown>();let heard:string|null=null;
+ let solPrice:number|null=200;
  const store=new Map<string,unknown>();
  const calls:Record<string,unknown[]>={};
  const spy=<T extends(...a:any[])=>any>(name:string,fn:T)=>((...a:any[])=>{(calls[name]??=[]).push(a);return fn(...a);}) as T;
@@ -44,6 +45,7 @@ function harness(app:Partial<Deps['app']>={}){
    voiceNote:async(_c,ogg)=>{voices.push(ogg);},
   },
   image:async uri=>uri?('https://cdn.example/'+uri+'.png'):null,
+  usdToSol:spy('usdToSol',async(usd:number)=>solPrice===null?null:usd/solPrice),
   voice:{
    enabled:async()=>voiceOn,
    setEnabled:async(_u,on)=>{voiceOn=on;},
@@ -61,7 +63,9 @@ function harness(app:Partial<Deps['app']>={}){
   },
  };
   return {deps,sent,answered,photos,voices,calls,
-         setHeard:(t:string|null)=>{heard=t;},actionStore,last:()=>sent[sent.length-1],
+         setHeard:(t:string|null)=>{heard=t;},
+         setSolPrice:(p:number|null)=>{solPrice=p;},
+         actionStore,last:()=>sent[sent.length-1],
          lastPhoto:()=>photos[photos.length-1]};
 }
 
@@ -382,6 +386,59 @@ test('confirming a voice note runs the interpreted command',async()=>{
  const ok=h.last().keyboard!.flat().find(b=>/confirm|yes/i.test(b.text))!;
  await route(callback(ok.callback_data,3001),h.deps);
  assert.deepEqual(seen,[{maxTradeSol:0.5,dailyCapSol:2,hours:24}]);
+});
+
+// Dollars. The demo is spoken in them; the trade underneath is still SOL.
+
+test('a spoken dollar amount is converted and the rate is shown',async()=>{
+ const h=harness();h.setSolPrice(200);
+ h.setHeard('Find the best Solana meme coin and buy one hundred dollars.');
+ await route(voiceNote(3100),h.deps);
+ const text=h.sent.map(s=>s.text).join('\n');
+ assert.match(text,/\$100/,'the amount as said');
+ assert.match(text,/0\.5/,'and what it converted to');
+ assert.deepEqual(h.calls.usdToSol,[[100]]);
+});
+
+test('a dollar buy still requires confirmation before it trades',async()=>{
+ let traded=false;
+ const h=harness({buy:async()=>{traded=true;return {position:POSITION as any,result:{ok:true,signature:'s',outAmount:'1'}};}});
+ h.setHeard('buy one hundred dollars of the dumbest memecoin');
+ await route(voiceNote(3101),h.deps);
+ assert.equal(traded,false,'a spoken dollar amount must not skip the keyboard');
+ assert.ok(h.last().keyboard,'confirmation is required');
+});
+
+test('confirming a dollar buy spends the converted amount, once',async()=>{
+ const seen:unknown[]=[];
+ const h=harness({buy:async(_u:string,_m:string,sol:number)=>{seen.push(sol);return {position:POSITION as any,result:{ok:true,signature:'s','outAmount':'1'}};}});
+ h.setSolPrice(200);
+ h.setHeard('buy one hundred dollars of the dumbest memecoin');
+ await route(voiceNote(3102),h.deps);
+ const ok=h.last().keyboard!.flat().find(b=>/confirm|yes/i.test(b.text))!;
+ await route(callback(ok.callback_data,3103),h.deps);
+ assert.deepEqual(seen,[0.5],'$100 at $200 a SOL');
+ await route(callback(ok.callback_data,3104),h.deps);
+ assert.deepEqual(seen,[0.5],'a second tap must not buy again');
+});
+
+// A rate is a divisor: without one, "$100" has no size at all.
+test('no readable price refuses the trade rather than guessing a size',async()=>{
+ let traded=false;
+ const h=harness({buy:async()=>{traded=true;return {position:POSITION as any,result:{ok:true,signature:'s',outAmount:'1'}};}});
+ h.setSolPrice(null);
+ h.setHeard('Find the best Solana meme coin and buy one hundred dollars.');
+ await route(voiceNote(3105),h.deps);
+ assert.equal(traded,false);
+ assert.match(h.last().text,/price/i);
+ assert.equal(h.last().keyboard,undefined,'nothing to confirm without an amount');
+});
+
+test('a spoken SOL amount never consults the price feed',async()=>{
+ const h=harness();
+ h.setHeard('buy 0.05 sol of the dumbest memecoin');
+ await route(voiceNote(3106),h.deps);
+ assert.equal(h.calls.usdToSol,undefined,'SOL is already the unit');
 });
 
 test('cancelling a voice note does nothing at all',async()=>{
