@@ -156,6 +156,17 @@ export function mode(m:'paper'|'live',paperLamports:string):string{
  ].join('\n');
 }
 
+/** Said once, when a funded wallet is given its first limits. */
+export function limitsOpened(l:Limits):string{
+ return [
+  'You had no spending limits, so I set these from your balance:',
+  '  Per trade: '+sol(l.maxTradeLamports)+' SOL',
+  '  Daily cap: '+sol(l.dailyCapLamports)+' SOL',
+  '  They expire in 24 hours.',
+  'Change them with /limits, or switch spending off with /revoke.',
+ ].join('\n');
+}
+
 export function limits(l:Limits|null):string{
  if(!l||!l.active)return 'No spending limits are set. Nothing can be spent until you set them with /limits.';
  const when=new Date(l.expiresAt*1000).toISOString().replace('T',' ').slice(0,16)+' UTC';

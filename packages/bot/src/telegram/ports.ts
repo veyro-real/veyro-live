@@ -10,7 +10,7 @@ import type {InlineKeyboard} from './types';
 import type {Intent} from './intent';
 
 export type AppSurface=Pick<typeof app,
- 'ensureUser'|'ensureWallet'|'setLimits'|'getLimits'|'revokeLimits'|
+ 'ensureUser'|'ensureWallet'|'setLimits'|'getLimits'|'ensureDefaultLimits'|'revokeLimits'|
  'setStrategy'|'getStrategy'|'setTradingMode'|'tradingMode'|'scan'|'explain'|'previewBuy'|'buy'|'sell'|'positions'|'trending'|
  'reconcilePositions'>;
 

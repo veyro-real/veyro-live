@@ -17,9 +17,10 @@ import {
  setPaperBalance, deactivateLimits, updatePosition, upsertUser, writeLimits,
  writeStrategy,
 } from './db';
-import {balanceLamports, ensureKeypair, mainnet, solToLamports} from './wallet/custody';
+import {balanceLamports, ensureKeypair, mainnet, solToLamports, spendableLamports} from './wallet/custody';
 import {buy as tradeBuy, reconcile, sell as tradeSell} from './trade/execute';
 import {paperBuy, paperSell} from './trade/paper';
+import {defaultLimits} from './trade/default-limits';
 import {SOL_MINT,quote,routeLabels} from './trade/jupiter';
 import {dexscreener} from './market/dexscreener';
 import {compileStrategy} from './strategy/compile';
@@ -96,6 +97,37 @@ export async function setLimits(
   expiresAt:Math.floor(Date.now()/1000)+Math.round(input.hours*3600),
   active:true,
   // Set once the mainnet policy account exists. Enforcement is unchanged.
+  policyAddress:null,
+ });
+}
+
+/**
+ * Gives a funded wallet sensible limits if it has none.
+ *
+ * Without this a first buy is denied with NO_LIMITS_SET, which is friction
+ * rather than protection: the confirmation tap authorises the spend, and
+ * limits are the ceiling that bounds it. Percentages of the balance now, as
+ * absolute lamports, because veyro_claim_spend cannot see an on-chain
+ * balance and stays the only authority on whether a spend is allowed.
+ *
+ * Returns the limits it created, or null if it created none — either because
+ * some already exist or because the wallet cannot fund one trade.
+ */
+export async function ensureDefaultLimits(userId:string):Promise<Limits|null>{
+ const existing=await readLimits(userId);
+ if(existing?.active)return null;
+
+ const kp=await ensureKeypair(userId);
+ const spendable=await spendableLamports(kp.publicKey.toBase58()).catch(()=>0n);
+ const wanted=defaultLimits(spendable);
+ if(!wanted)return null;
+
+ return writeLimits({
+  userId,
+  maxTradeLamports:wanted.maxTradeLamports,
+  dailyCapLamports:wanted.dailyCapLamports,
+  expiresAt:Math.floor(Date.now()/1000)+wanted.hours*3600,
+  active:true,
   policyAddress:null,
  });
 }

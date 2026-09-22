@@ -126,7 +126,18 @@ export const handlers:Handlers={
   const {mode}=await deps.app.tradingMode(userId);
   // Best effort: a preview that fails must not stop the trade being offered.
   const preview=await deps.app.previewBuy(c.mint,c.sol).catch(()=>undefined);
-  const caption=render.confirm(c.mint,c.sol,row,mode==='paper',preview);
+
+  // A funded wallet with no limits is denied at the moment of confirming,
+  // which is the worst place to find out. Set sensible ones now and say so:
+  // limits are a ceiling, and the tap below is still what authorises this.
+  // Best effort — failing to set a default must not stop the trade being
+  // offered, because veyro_claim_spend will refuse it anyway if it matters.
+  const opened=mode==='live'
+   ?await deps.app.ensureDefaultLimits(userId).catch(()=>null)
+   :null;
+
+  const caption=(opened?render.limitsOpened(opened)+'\n\n':'')+
+   render.confirm(c.mint,c.sol,row,mode==='paper',preview);
   const image=row?await deps.image(row.candidate.uri):null;
   // Telegram fetches the image itself, and a token's metadata often points at
   // IPFS it cannot reach — which fails the whole send. The picture is
