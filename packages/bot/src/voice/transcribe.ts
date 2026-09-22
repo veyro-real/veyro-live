@@ -1,13 +1,12 @@
 // Turning a Telegram voice note into text.
 //
-// Telegram delivers OGG/Opus; whisper.cpp wants 16 kHz mono PCM, so ffmpeg
-// sits between them. The model is a local ggml file, which means this works
-// on a machine that has one and NOT in the Linux container on Railway unless
-// the model ships with the image. available() says which, so the bot can
-// answer "I cannot hear voice notes here" instead of silently ignoring them.
+// Two implementations behind one interface. OpenAI accepts Telegram's
+// OGG/Opus as delivered, so it needs neither ffmpeg nor a local model and is
+// the only one of the two that works in the Linux container on Railway.
+// whisper.cpp stays for local work and for running without a network call.
 //
-// Swapping in a hosted transcriber means implementing Transcriber and
-// nothing else.
+// available() says which, so the bot can answer "I cannot hear voice notes
+// here" instead of silently ignoring them.
 
 import {execFile} from 'node:child_process';
 import {mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';
@@ -72,7 +71,43 @@ export function whisperTranscriber(opts:{bin?:string;model?:string;ffmpegBin?:st
  };
 }
 
+/** Telegram caps voice notes well below this; it bounds a malformed update. */
+const MAX_BYTES=24*1024*1024;
+
+export function openaiTranscriber(opts:{apiKey?:string;model?:string;baseUrl?:string}={}):Transcriber{
+ const apiKey=opts.apiKey??process.env.OPENAI_API_KEY??'';
+ const model=opts.model??process.env.VEYRO_TRANSCRIBE_MODEL??'gpt-4o-mini-transcribe';
+ const baseUrl=opts.baseUrl??process.env.OPENAI_BASE_URL??'https://api.openai.com/v1';
+
+ return {
+  available:async()=>apiKey.length>0,
+  async transcribe(ogg){
+   if(ogg.length===0||ogg.length>MAX_BYTES||!apiKey)return null;
+   try{
+    const form=new FormData();
+    // The extension and type are what the API identifies the codec by.
+    form.append('file',new Blob([new Uint8Array(ogg)],{type:'audio/ogg'}),'voice.ogg');
+    form.append('model',model);
+    form.append('response_format','json');
+    const res=await fetch(baseUrl+'/audio/transcriptions',{
+     method:'POST',
+     headers:{Authorization:'Bearer '+apiKey},
+     body:form,
+     signal:AbortSignal.timeout(60_000),
+    });
+    // Body may carry the request back; never widen this past the status.
+    if(!res.ok)throw Error('OPENAI_HTTP_'+res.status);
+    const text=String((await res.json() as {text?:unknown}).text??'').replace(/\s+/g,' ').trim();
+    return text||null;
+   }catch{
+    return null; // The router tells the user it could not hear.
+   }
+  },
+ };
+}
+
 export function transcriber():Transcriber{
  if(process.env.VEYRO_VOICE_DISABLED==='true')return DEAF;
+ if(process.env.OPENAI_API_KEY)return openaiTranscriber();
  return whisperTranscriber();
 }
