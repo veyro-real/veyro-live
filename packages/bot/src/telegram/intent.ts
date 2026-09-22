@@ -60,6 +60,9 @@ export function spokenNumber(phrase:string):number|null{
 }
 
 const MONEY='(?:dollars?|bucks|usd)';
+// Under a dollar is the normal size for a demo or a first live trade, and
+// "fifty cents" is how people say it. Without this it parses as fifty.
+const CENTS='(?:cents?|c\\b)';
 
 /**
  * The words immediately before a unit, as a number.
@@ -80,6 +83,14 @@ function wordsBefore(t:string,unit:string):number|null{
 
 /** A dollar amount anywhere in the utterance, digits or words. */
 function usdFrom(t:string):number|null{
+ // Cents first: "50 cents" also matches the bare-number dollar forms, and
+ // reading it as fifty dollars is a hundredfold error in the spending
+ // direction.
+ const centDigits=num(t.match(new RegExp('([\\d.]+)\\s*'+CENTS))?.[1]);
+ if(centDigits!==null)return centDigits/100;
+ const centWords=wordsBefore(t,CENTS);
+ if(centWords!==null)return centWords/100;
+
  const digits=t.match(new RegExp('\\$\\s*([\\d.]+)|([\\d.]+)\\s*'+MONEY));
  if(digits)return num(digits[1]??digits[2]);
  return wordsBefore(t,MONEY);

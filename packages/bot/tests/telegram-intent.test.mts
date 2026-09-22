@@ -154,3 +154,23 @@ test('sol amounts are untouched by the dollar path',()=>{
  assert.deepEqual(intentFromSpeech('buy 0.05 sol of whatever is trending'),
   {kind:'buyTrending',sol:0.05});
 });
+
+// Sub-dollar amounts. Reading "50 cents" as fifty dollars is a hundredfold
+// error, and it errs toward spending more.
+test('cents are understood, and are not dollars',()=>{
+ assert.deepEqual(intentFromSpeech('Buy 50 cents of the dumbest meme coin.'),
+  {kind:'buyTrending',usd:0.5});
+ assert.deepEqual(intentFromSpeech('buy fifty cents of the dumbest memecoin'),
+  {kind:'buyTrending',usd:0.5});
+ assert.deepEqual(intentFromSpeech('buy 69 cents of the dumbest memecoin'),
+  {kind:'buyTrending',usd:0.69});
+ assert.deepEqual(intentFromSpeech('buy 25 cents of wif'),
+  {kind:'buyBySymbol',symbol:'wif',usd:0.25});
+});
+
+test('dollars still mean dollars when cents are not said',()=>{
+ assert.deepEqual(intentFromSpeech('buy 50 dollars of the dumbest memecoin'),
+  {kind:'buyTrending',usd:50});
+ assert.deepEqual(intentFromSpeech('buy $50 of the dumbest memecoin'),
+  {kind:'buyTrending',usd:50});
+});
