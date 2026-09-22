@@ -114,6 +114,39 @@ const BUY_VERB=/\b(buy|buys|buying|spend|spends|spending|purchase|purchases|ape|
 /** "the dumbest memecoin", "the best solana meme coin": a pick, not a symbol. */
 const TRENDING=/dumbest|trending|whatever is hot|top meme|best(?:\s+\w+){0,2}\s+meme/;
 
+/**
+ * Why an utterance was refused, when it was understood and refused rather
+ * than not understood at all.
+ *
+ * intentFromSpeech returns null for both, and the two deserve different
+ * answers: "I did not understand it" is a lie when someone asked to sell
+ * every coin they hold and the module deliberately declined. Returns null
+ * when there is genuinely nothing to explain, so nothing is invented.
+ */
+export function refusalFor(raw:string):string|null{
+ const t=normalise(raw);
+ if(!t||t.startsWith('/'))return null;
+ if(intentFromSpeech(raw))return null;
+
+ if(/\bsell\b/.test(t)){
+  return 'I do not sell out loud. A position id is a uuid and mishearing one '+
+   'character would close the wrong thing, so /positions shows what you hold '+
+   'and /sell <id> closes one.';
+ }
+
+ if(BUY_VERB.test(t)){
+  return 'I heard a buy but no amount, and an amount is the one thing I will '+
+   'not guess at. Say how much — "buy 0.1 sol of it", or "spend five dollars".';
+ }
+
+ if(/\blimits?\b/.test(t)){
+  return 'Limits need all three numbers: per trade, per day, and for how '+
+   'long. Say "limits 0.5 sol per trade, 2 sol a day, 24 hours".';
+ }
+
+ return null;
+}
+
 export function intentFromSpeech(raw:string):Intent|null{
  const t=normalise(raw);
  if(!t)return null;

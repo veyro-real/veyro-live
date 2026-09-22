@@ -13,7 +13,7 @@
 import {randomBytes} from 'node:crypto';
 import type {InlineKeyboard,TelegramUpdate} from './types';
 import {parseCommand,type Command} from './parse';
-import {intentFromSpeech,type Intent} from './intent';
+import {intentFromSpeech,refusalFor,type Intent} from './intent';
 import type * as app from '../app';
 import * as render from './render';
 import {WHY} from './render';
@@ -192,7 +192,12 @@ async function onVoice(update:TelegramUpdate,deps:Deps):Promise<void>{
  const heard='I heard: "'+transcript+'"';
  const intent=intentFromSpeech(transcript);
  if(!intent){
-  return void await send(heard+'\n\nI did not understand it. /help lists what I answer.');
+  // Understood and declined is not the same as not understood, and saying
+  // the second when the first is true leaves someone retrying a phrasing
+  // that was never going to work.
+  const why=refusalFor(transcript);
+  return void await send(heard+'\n\n'+
+   (why??'I did not understand it. /help lists what I answer.'));
  }
 
  if(readOnly(intent)){
