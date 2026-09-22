@@ -36,6 +36,9 @@ function harness(app:Partial<Deps['app']>={}){
    positions:async()=>[],
    reconcilePositions:async()=>[],
    trending:async()=>TRENDING,
+   // Migration 0004 defaults every user to paper, so the harness does too.
+   tradingMode:spy('tradingMode',async()=>({mode:'paper',paperLamports:'5000000000'})),
+   setTradingMode:async()=>({mode:'paper',paperLamports:'5000000000'}),
    ...app,
   } as Deps['app'],
   out:{

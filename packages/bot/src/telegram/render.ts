@@ -243,9 +243,14 @@ export function why(row:ScanRow|null,mint:string):string{
  * plain statement that it was not. Nothing here forecasts a price, because
  * the filter measures disqualifiers and has no opinion about what goes up.
  */
-export function confirm(mint:string,solAmount:number,row:ScanRow|null):string{
+export function confirm(mint:string,solAmount:number,row:ScanRow|null,paper=false):string{
  const head='Buy '+solAmount+' SOL';
- const tail='Real funds, and it cannot be undone.';
+ // Defaults to the live warning: if the mode could not be read, the cautious
+ // sentence is the true one. Saying "real funds" about a simulated trade is
+ // the same kind of lie as the reverse, and a demo says it on a screen.
+ const tail=paper
+  ? 'Paper trade. Simulated at a live quote; no SOL moves and no transaction exists.'
+  : 'Real funds, and it cannot be undone.';
  if(!row){
   return [
    head+' of',

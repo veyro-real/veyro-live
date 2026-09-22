@@ -59,3 +59,19 @@ test('the list is capped so the keyboard stays usable',()=>{
  const many=Array.from({length:30},(_,i)=>row({symbol:'T'+i,mint:MINT.slice(0,-2)+String(i).padStart(2,'0')}));
  assert.ok(scan(many).keyboard.flat().length<=8);
 });
+
+// A paper trade that says "real funds" is the same lie as the reverse, and a
+// demo puts it on a screen in front of people.
+test('the confirmation tells the truth about which kind of money this is',async()=>{
+ const {confirm}=await import('../src/telegram/render');
+ const paper=confirm('Hgtpj3Rg2BWWeopkAiVy71KT8L8nQWMxxxFdChq2pump',0.86,null,true);
+ assert.match(paper,/paper|simulated/i);
+ assert.doesNotMatch(paper,/real funds/i);
+
+ const live=confirm('Hgtpj3Rg2BWWeopkAiVy71KT8L8nQWMxxxFdChq2pump',0.86,null,false);
+ assert.match(live,/real funds/i);
+ assert.doesNotMatch(live,/simulated/i);
+
+ assert.match(confirm('Hgtpj3Rg2BWWeopkAiVy71KT8L8nQWMxxxFdChq2pump',0.86,null),
+  /real funds/i,'an unknown mode warns rather than reassures');
+});

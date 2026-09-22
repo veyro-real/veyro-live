@@ -123,7 +123,8 @@ export const handlers:Handlers={
   // Show what is being bought. A token we never measured says so instead
   // of borrowing the look of one we did.
   const row=await deps.app.explain(c.mint);
-  const caption=render.confirm(c.mint,c.sol,row);
+  const {mode}=await deps.app.tradingMode(userId);
+  const caption=render.confirm(c.mint,c.sol,row,mode==='paper');
   const image=row?await deps.image(row.candidate.uri):null;
   if(image)await deps.out.photo(chatId,image,caption,keyboard);
   else await send(caption,keyboard);
