@@ -6,8 +6,11 @@
 //
 // Run it only on a machine you trust, and never paste the output anywhere.
 //
-//   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
+//   cd packages/bot && SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
 //   VEYRO_CREDENTIALS_KEY=... node scripts/recover-wallet.mjs [walletPubkey]
+//
+// It lives in packages/bot because that is where its dependencies are
+// installed; from the repository root node cannot resolve them.
 //
 // With no argument it lists every wallet it can decrypt and their balances.
 
