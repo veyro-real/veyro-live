@@ -13,6 +13,12 @@ test('a bot mention suffix is stripped',()=>{
  assert.equal(parseCommand('/wallet@VeyroTradingBot').kind,'wallet');
 });
 
+test('funding and the wallet are one screen, under any of its names',()=>{
+ for(const c of ['fund','deposit','wallet']){
+  assert.equal(parseCommand('/'+c).kind,'wallet',c);
+ }
+});
+
 test('text that is not a command is unknown',()=>{
  assert.equal(parseCommand('hello there').kind,'unknown');
  assert.equal(parseCommand('').kind,'unknown');

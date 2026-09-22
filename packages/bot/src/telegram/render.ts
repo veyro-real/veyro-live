@@ -45,7 +45,7 @@ export function help():string{
   '/tutorial — a seven step walkthrough of everything here',
   '/mode — paper or live, or /paper and /live to switch',
   '/connect — link your x.com account (not available yet)',
-  '/wallet — your deposit address and balance',
+  '/wallet (or /fund) — your deposit address and balance',
   '/limits — show limits, or /limits <max trade SOL> <daily cap SOL> <hours>',
   '/revoke — switch off all spending now',
   '/edge — show your strategy, or /edge <plain English>',

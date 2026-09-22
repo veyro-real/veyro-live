@@ -142,6 +142,12 @@ test('a dollar buy still needs something to buy',()=>{
   'no symbol and no pick is not a trade');
 });
 
+test('asking to add funds is the same screen as asking for the wallet',()=>{
+ for(const said of ['add funds','how do i fund my wallet','top up','show me my wallet']){
+  assert.deepEqual(intentFromSpeech(said),{kind:'wallet'},said);
+ }
+});
+
 test('sol amounts are untouched by the dollar path',()=>{
  assert.deepEqual(intentFromSpeech('buy 0.1 sol of wif'),
   {kind:'buyBySymbol',symbol:'wif',sol:0.1});

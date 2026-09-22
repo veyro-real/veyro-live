@@ -63,7 +63,9 @@ export function parseCommand(raw:string):Command{
    return {kind:'usage',command:'mode'};
   }
   case 'connect':return {kind:'connect'};
-  case 'wallet':return {kind:'wallet'};
+  // One screen: it is the deposit address that funds the wallet, so asking
+  // to add funds and asking where the wallet is are the same question.
+  case 'wallet':case 'fund':case 'deposit':return {kind:'wallet'};
   case 'revoke':return {kind:'revoke'};
   // Lets a group tell you its own id, which is how alerts get configured.
   case 'chatid':return {kind:'chatid'};

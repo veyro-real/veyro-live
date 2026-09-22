@@ -154,7 +154,7 @@ export function intentFromSpeech(raw:string):Intent|null{
  // A position id cannot be spoken, so this is always a refusal.
  if(/\bsell\b/.test(t))return null;
 
- if(/\bwallet\b|deposit address|my address/.test(t))return {kind:'wallet'};
+ if(/\bwallet\b|deposit address|my address|add funds|fund my|top up/.test(t))return {kind:'wallet'};
  if(/\bpositions?\b|what am i holding|what do i hold|my bags/.test(t))return {kind:'positions',includeClosed:false};
  if(/\btrending\b|what is hot|whats hot/.test(t))return {kind:'trending',limit:5};
  if(/\bscan\b|what passed|passed the filter|any candidates/.test(t))return {kind:'scan',limit:10};
