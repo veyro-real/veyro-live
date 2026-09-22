@@ -101,7 +101,8 @@ export async function buy(
   // Unique index rejected a second open position in the same mint.
   await settleSpend(claim.reservationId,'RELEASED',null);
   await finishRequest(userId,'buy:'+key,'');
-  const reason=/veyro_positions_one_open_per_mint/.test(String(e))?'POSITION_ALREADY_OPEN':'OPEN_POSITION_FAILED';
+  const reason=/veyro_positions_one_open_per_mint|POSITION_ALREADY_OPEN/.test(String(e))
+   ?'POSITION_ALREADY_OPEN':'OPEN_POSITION_FAILED';
   return phantom(userId,mint,symbol,lamports,reason);
  }
  await finishRequest(userId,'buy:'+key,position.id);

@@ -36,6 +36,10 @@ const DENIALS:Record<string,string>={
  CANNOT_BUY_SOL:'SOL is what you are spending, so it cannot also be what you buy.',
  REQUEST_IN_FLIGHT:'That request is still running. Wait for it to finish.',
  REQUEST_ALREADY_HANDLED:'That request was already handled.',
+ POSITION_ALREADY_OPEN:'You already hold an open position in this token. '+
+  '/positions shows it, and /sell closes it before you buy more.',
+ PAPER_OPEN_FAILED:'The simulated position could not be opened. Nothing was spent.',
+ OPEN_POSITION_FAILED:'The position could not be opened. Nothing was spent.',
 };
 
 export const denial=(reason:string):string=>DENIALS[reason]??('The trade did not go through: '+reason+'.');

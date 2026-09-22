@@ -54,7 +54,18 @@ export async function paperBuy(
   return refused(userId,mint,symbol,lamports,'PAPER_QUOTE_FAILED: '+(e as Error).message);
  }
 
- const position=await deps.open({userId,mint,symbol,entryLamports:lamports});
+ // One open position per mint, same as the live path. Already holding this
+ // is a normal answer, not a fault, so it is refused rather than thrown: a
+ // throw reaches the router as "something went wrong on our side", which
+ // tells the user to retry something that cannot succeed.
+ let position;
+ try{
+  position=await deps.open({userId,mint,symbol,entryLamports:lamports});
+ }catch(e){
+  const already=/veyro_positions_one_open_per_mint|POSITION_ALREADY_OPEN/.test(String(e));
+  return refused(userId,mint,symbol,lamports,
+   already?'POSITION_ALREADY_OPEN':'PAPER_OPEN_FAILED');
+ }
  await deps.setPaperBalance(userId,balance-lamports);
  const filled=await deps.update(position.id,{
   status:'OPEN',tokensReceived:outAmount,reason:'PAPER_FILL',

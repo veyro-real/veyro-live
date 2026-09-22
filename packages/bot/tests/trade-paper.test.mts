@@ -107,3 +107,34 @@ test('live mode says it spends real SOL and how to stop it',()=>{
  assert.match(text,/revoke/i);
  assert.match(text,/limits/i);
 });
+
+// Already holding a token is an answer, not a fault. Thrown, it reaches the
+// router as "something went wrong on our side" and tells the user to retry
+// something that can never succeed.
+test('a second buy of a token already held is refused, not thrown',async()=>{
+ const deps={
+  quote:async()=>({outAmount:'1000'}),
+  paperBalance:async()=>5_000_000_000n,
+  setPaperBalance:async()=>{},
+  open:async()=>{throw Error('duplicate key value violates unique constraint "veyro_positions_one_open_per_mint"');},
+  update:async()=>{throw Error('should not be reached');},
+  find:async()=>null,
+ };
+ const out=await paperBuy('u-1','MintAAA',1_000_000n,'AAA',deps as any);
+ assert.equal(out.result.ok,false);
+ assert.equal(out.result.reason,'POSITION_ALREADY_OPEN');
+});
+
+test('the paper balance is not debited when the position cannot open',async()=>{
+ let debited=false;
+ const deps={
+  quote:async()=>({outAmount:'1000'}),
+  paperBalance:async()=>5_000_000_000n,
+  setPaperBalance:async()=>{debited=true;},
+  open:async()=>{throw Error('POSITION_ALREADY_OPEN');},
+  update:async()=>{throw Error('should not be reached');},
+  find:async()=>null,
+ };
+ await paperBuy('u-1','MintAAA',1_000_000n,'AAA',deps as any);
+ assert.equal(debited,false,'simulated funds were taken for a trade that never opened');
+});

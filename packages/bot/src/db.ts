@@ -155,6 +155,10 @@ export async function openPosition(p:{
   entry_lamports:p.entryLamports.toString(),strategy_id:p.strategyId,
   paper:p.paper===true,reason:p.paper===true?'PAPER_FILLING':'SUBMITTING',
  }).select().single();
+ // One open position per mint is the schema's rule, not a fault. Reporting
+ // it as a database failure tells the user to try again, which cannot work,
+ // and hides the one thing they can act on: they already hold this.
+ if(error?.code==='23505')throw Error('POSITION_ALREADY_OPEN');
  return rowToPosition(ok(data,error,'OPEN_POSITION'));
 }
 
