@@ -616,7 +616,11 @@ test('the amount asked for covers the fee buffer, not just the shortfall',async(
  assert.match(h.last().text,/send at least/i);
 });
 
-test('the onramp link never carries the custodial address',async()=>{
+// The rule is not "never prefill" — MoonPay's partner integration exists to
+// remove that paste. It is that an address may only travel in a URL signed
+// with the partner secret, which binds it to our account. Unsigned, it both
+// leaks the destination and fails to load.
+test('an unconfigured onramp link never carries the address',async()=>{
  const h=harness({buy:async()=>SHORT as any});
  await route(message('/buy '+MINT+' 0.05'),h.deps);
  const confirm=h.last().keyboard!.flat().find(b=>/confirm/i.test(b.text))!;
@@ -651,4 +655,20 @@ test('every other refusal is still reported as it is',async()=>{
  await route(callback(confirm.callback_data,7007),h.deps);
  assert.match(h.last().text,/daily cap/i);
  assert.equal(h.last().keyboard,undefined,'a cap refusal is not a funding problem');
+});
+
+test('a configured onramp prefills the address, and signs it',async()=>{
+ const before={p:process.env.MOONPAY_PUBLISHABLE_KEY,s:process.env.MOONPAY_SECRET_KEY};
+ process.env.MOONPAY_PUBLISHABLE_KEY='pk_test_DocsVector00';
+ process.env.MOONPAY_SECRET_KEY='sk_test_DocsVector00';
+ try{
+  const h=harness();
+  await route(message('/wallet'),h.deps);
+  const link=h.last().keyboard!.flat().find(b=>'url' in b) as {url:string};
+  assert.match(link.url,/walletAddress=Wa11et/,'the paste was not removed');
+  assert.match(link.url,/&signature=/,'an address without a signature will not load');
+ }finally{
+  if(before.p===undefined)delete process.env.MOONPAY_PUBLISHABLE_KEY;else process.env.MOONPAY_PUBLISHABLE_KEY=before.p;
+  if(before.s===undefined)delete process.env.MOONPAY_SECRET_KEY;else process.env.MOONPAY_SECRET_KEY=before.s;
+ }
 });

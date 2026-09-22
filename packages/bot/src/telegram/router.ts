@@ -19,6 +19,7 @@ import * as render from './render';
 import {WHY} from './render';
 import {ACTION,ACTION_NO,CANCEL,CONFIRM,FUNDED,report,runCommand,type Ctx} from './handlers';
 import {stepAction,stepMessage,TUTORIAL,TUTORIAL_DO} from './tutorial';
+import {onrampLink} from '../fund/moonpay';
 import {pickTrending,TRENDING_POOL} from '../trade/pick-trending';
 
 /** The part of lib/app the Telegram channel is allowed to call. */
@@ -191,6 +192,9 @@ async function onCallback(update:TelegramUpdate,deps:Deps):Promise<void>{
  * authorise it, so the trade is held and they are given the address, the
  * amount and a way to pay. Every other refusal is reported as it is.
  */
+/** Enough for a run of small trades, so funding is not a per-trade chore. */
+const SUGGESTED_TOPUP_USD=20;
+
 async function settleBuy(
  p:PendingBuy,update:TelegramUpdate,deps:Deps,send:(t:string,k?:InlineKeyboard)=>Promise<void>,
 ):Promise<void>{
@@ -209,6 +213,9 @@ async function settleBuy(
   needLamports:BigInt(Math.round(p.sol*1e9)),
   symbol:outcome.position.symbol||null,
   retryData:FUNDED+again,
+  // Suggest a round figure worth several trades rather than the exact
+  // shortfall: topping up to the lamport means funding again next time.
+  onramp:onrampLink({pubkey:w.pubkey,usdAmount:SUGGESTED_TOPUP_USD}),
  });
  return void await send(text,keyboard);
 }

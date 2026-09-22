@@ -131,6 +131,8 @@ export function needsFunding(opts:{
  symbol:string|null;
  /** Callback data for the retry button. */
  retryData:string;
+ /** Where to buy SOL. Prefilled only through a signed partner link. */
+ onramp?:{url:string;prefilled:boolean};
 }):{text:string;keyboard:InlineKeyboard}{
  // What must arrive, not what the swap costs: the fee buffer is held back
  // from every balance, so funding only the difference still refuses.
@@ -148,9 +150,11 @@ export function needsFunding(opts:{
   'Your deposit address:',
   opts.pubkey,
   '',
-  'Buy SOL below — the card page takes Apple Pay — then paste that address '+
-  'as the destination. It is not filled in for you: the provider needs the '+
-  'buyer to own the wallet, and this one is held by the service.',
+  opts.onramp?.prefilled
+   ? 'Buy SOL below. The card page takes Apple Pay, and the address above is '+
+     'already filled in — you only choose how much and how to pay.'
+   : 'Buy SOL below — the card page takes Apple Pay — then paste that address '+
+     'as the destination.',
   '',
   'Funds take a few minutes to arrive. Tap "I have funded it" when they do '+
   'and I will finish this trade.',
@@ -159,12 +163,14 @@ export function needsFunding(opts:{
  ].join('\n');
 
  return {text,keyboard:[
-  [{text:'Buy SOL with a card',url:ONRAMP_URL}],
+  [{text:'Buy SOL with a card',url:opts.onramp?.url??ONRAMP_URL}],
   [{text:'I have funded it',callback_data:opts.retryData}],
  ]};
 }
 
-export function walletMessage(pubkey:string,lamports:string|null):{
+export function walletMessage(
+ pubkey:string,lamports:string|null,onramp?:{url:string;prefilled:boolean},
+):{
  text:string;keyboard:InlineKeyboard;
 }{
  const balance=lamports===null
@@ -177,7 +183,9 @@ export function walletMessage(pubkey:string,lamports:string|null):{
   '',
   balance,
   '',
-  'To fund it: buy SOL, then send it to the address above.',
+  onramp?.prefilled
+   ? 'To fund it: tap below. The address is already filled in for you.'
+   : 'To fund it: buy SOL, then send it to the address above.',
   '',
   'Send SOL on Solana and nothing else. A different coin, or SOL on another '+
   'chain, is lost and cannot be recovered.',
@@ -187,7 +195,7 @@ export function walletMessage(pubkey:string,lamports:string|null):{
   CUSTODY,
  ].join('\n');
 
- return {text,keyboard:[[{text:'Buy SOL with a card',url:ONRAMP_URL}]]};
+ return {text,keyboard:[[{text:'Buy SOL with a card',url:onramp?.url??ONRAMP_URL}]]};
 }
 
 export function mode(m:'paper'|'live',paperLamports:string):string{

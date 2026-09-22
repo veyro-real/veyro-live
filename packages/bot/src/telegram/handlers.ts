@@ -12,6 +12,7 @@ import type {InlineKeyboard} from './types';
 import type * as app from '../app';
 import * as render from './render';
 import {spokenConfirm} from '../voice/speech';
+import {onrampLink} from '../fund/moonpay';
 
 export const CONFIRM='b:',CANCEL='x:',ACTION='a:',ACTION_NO='n:';
 /** "I have funded it" on a buy that stopped for want of SOL. */
@@ -48,7 +49,7 @@ function report(outcome:app.TradeOutcome,verb:string):string{
 export const handlers:Handlers={
  async wallet(_c,{userId,deps,send}){
   const w=await deps.app.ensureWallet(userId);
-  const {text,keyboard}=render.walletMessage(w.pubkey,w.lamports);
+  const {text,keyboard}=render.walletMessage(w.pubkey,w.lamports,onrampLink({pubkey:w.pubkey}));
   await send(text,keyboard);
  },
 

@@ -17,10 +17,10 @@ test('it offers a way to buy SOL with a card',()=>{
  assert.match(buy!.text,/SOL/);
 });
 
-// The onramp sends to whatever address the user pastes. Veyro holds the key
-// to this one, so it must never be prefilled into a third party's flow as a
-// self-custody destination — the user pastes it themselves, deliberately.
-test('the deposit address is never embedded in the onramp link',()=>{
+// Without partner keys there is no way to sign, and an unsigned URL carrying
+// a wallet address both leaks the destination and is refused by the widget.
+// Prefilling is the signed partner path or it does not happen at all.
+test('an unsigned onramp link never carries the deposit address',()=>{
  const {keyboard}=walletMessage(ADDR,'0');
  for(const b of keyboard.flat()){
   if('url' in b)assert.doesNotMatch(b.url,new RegExp(ADDR),'address prefilled into a third party URL');
