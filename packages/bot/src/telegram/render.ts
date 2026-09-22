@@ -5,6 +5,7 @@
 // user in plain language that the service holds their keys.
 
 import type {Limits,Position} from '../types';
+import {FEE_BUFFER_LAMPORTS} from '../wallet/custody';
 import type {BuyPreview,ScanRow,TrendingRow} from '../app';
 import type {InlineKeyboard} from './types';
 
@@ -109,6 +110,59 @@ export const usage=(command:string):string=>USAGE[command]??help();
  * registered, which Veyro is not. The user pastes it themselves.
  */
 export const ONRAMP_URL='https://buy.moonpay.com/?defaultCurrencyCode=sol';
+
+/**
+ * A buy that stopped for want of SOL.
+ *
+ * Refusing with "not enough SOL" and nothing else ends the conversation at
+ * the exact moment the user has said what they want. They know they are
+ * short; what they need is the address, the number, and a way to pay. The
+ * trade is held so it can finish once the money lands.
+ *
+ * The onramp link still carries no destination address. It opens a hosted
+ * page where Apple Pay is one of the methods, and the address is pasted by
+ * the person who owns the card — every provider requires the buyer to own
+ * the destination, and this wallet is custodial.
+ */
+export function needsFunding(opts:{
+ pubkey:string;
+ haveLamports:bigint;
+ needLamports:bigint;
+ symbol:string|null;
+ /** Callback data for the retry button. */
+ retryData:string;
+}):{text:string;keyboard:InlineKeyboard}{
+ // What must arrive, not what the swap costs: the fee buffer is held back
+ // from every balance, so funding only the difference still refuses.
+ const target=opts.needLamports+FEE_BUFFER_LAMPORTS;
+ const short=target>opts.haveLamports?target-opts.haveLamports:0n;
+
+ const text=[
+  'Not enough SOL yet'+(opts.symbol?(' to buy '+opts.symbol):'')+'.',
+  '',
+  'In your wallet: '+sol(opts.haveLamports)+' SOL',
+  'This trade needs: '+sol(opts.needLamports)+' SOL, plus '+
+   sol(FEE_BUFFER_LAMPORTS)+' SOL kept back for network fees',
+  'So send at least: '+sol(short)+' SOL',
+  '',
+  'Your deposit address:',
+  opts.pubkey,
+  '',
+  'Buy SOL below — the card page takes Apple Pay — then paste that address '+
+  'as the destination. It is not filled in for you: the provider needs the '+
+  'buyer to own the wallet, and this one is held by the service.',
+  '',
+  'Funds take a few minutes to arrive. Tap "I have funded it" when they do '+
+  'and I will finish this trade.',
+  '',
+  CUSTODY,
+ ].join('\n');
+
+ return {text,keyboard:[
+  [{text:'Buy SOL with a card',url:ONRAMP_URL}],
+  [{text:'I have funded it',callback_data:opts.retryData}],
+ ]};
+}
 
 export function walletMessage(pubkey:string,lamports:string|null):{
  text:string;keyboard:InlineKeyboard;

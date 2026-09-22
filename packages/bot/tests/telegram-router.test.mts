@@ -588,3 +588,67 @@ test('a working image still shows as a photo',async()=>{
  assert.equal(h.photos.length,1,'expected the photo path');
  assert.equal(h.sent.length,0,'should not also send text');
 });
+
+// Being short of SOL is the one refusal that is not the end of the
+// conversation: the user has already said what they want and authorised it.
+const SHORT={position:{...POSITION,status:'FAILED',symbol:'SATOSHINU'} as any,
+ result:{ok:false,reason:'INSUFFICIENT_BALANCE',signature:null}};
+
+test('a buy short of SOL holds the trade and offers a way to pay',async()=>{
+ const h=harness({buy:async()=>SHORT as any});
+ await route(message('/buy '+MINT+' 0.05'),h.deps);
+ const confirm=h.last().keyboard!.flat().find(b=>/confirm/i.test(b.text))!;
+ await route(callback(confirm.callback_data,7001),h.deps);
+
+ const out=h.last();
+ assert.match(out.text,/not enough sol/i);
+ assert.match(out.text,/Wa11et/,'the deposit address is missing');
+ assert.ok(out.keyboard?.flat().some(b=>'url' in b),'no way to buy SOL');
+ assert.ok(out.keyboard?.flat().some(b=>/funded/i.test(b.text)),'no way to resume');
+});
+
+test('the amount asked for covers the fee buffer, not just the shortfall',async()=>{
+ const h=harness({buy:async()=>SHORT as any});
+ await route(message('/buy '+MINT+' 0.05'),h.deps);
+ const confirm=h.last().keyboard!.flat().find(b=>/confirm/i.test(b.text))!;
+ await route(callback(confirm.callback_data,7002),h.deps);
+ // 0.5 SOL held, 0.05 needed, 0.012 buffer — already covered, so zero.
+ assert.match(h.last().text,/send at least/i);
+});
+
+test('the onramp link never carries the custodial address',async()=>{
+ const h=harness({buy:async()=>SHORT as any});
+ await route(message('/buy '+MINT+' 0.05'),h.deps);
+ const confirm=h.last().keyboard!.flat().find(b=>/confirm/i.test(b.text))!;
+ await route(callback(confirm.callback_data,7003),h.deps);
+ for(const b of h.last().keyboard!.flat()){
+  if('url' in b)assert.doesNotMatch(b.url,/Wa11et/,'address prefilled into a third party');
+ }
+});
+
+test('funding then tapping resume completes the same trade, once',async()=>{
+ let calls=0;
+ const h=harness({buy:async()=>{calls++;return calls===1?SHORT as any
+  :{position:POSITION as any,result:{ok:true,signature:'sig-9',outAmount:'1000'}};}});
+ await route(message('/buy '+MINT+' 0.05'),h.deps);
+ const confirm=h.last().keyboard!.flat().find(b=>/confirm/i.test(b.text))!;
+ await route(callback(confirm.callback_data,7004),h.deps);
+
+ const resume=h.last().keyboard!.flat().find(b=>/funded/i.test(b.text))!;
+ await route(callback(resume.callback_data,7005),h.deps);
+ assert.match(h.last().text,/sig-9/,'the held trade did not complete');
+
+ await route(callback(resume.callback_data,7006),h.deps);
+ assert.equal(calls,2,'a replayed resume must not buy again');
+ assert.match(h.last().text,/no longer held/i);
+});
+
+test('every other refusal is still reported as it is',async()=>{
+ const h=harness({buy:async()=>({position:{...POSITION,status:'FAILED'} as any,
+  result:{ok:false,reason:'DAILY_CAP_EXCEEDED',signature:null}})});
+ await route(message('/buy '+MINT+' 0.05'),h.deps);
+ const confirm=h.last().keyboard!.flat().find(b=>/confirm/i.test(b.text))!;
+ await route(callback(confirm.callback_data,7007),h.deps);
+ assert.match(h.last().text,/daily cap/i);
+ assert.equal(h.last().keyboard,undefined,'a cap refusal is not a funding problem');
+});

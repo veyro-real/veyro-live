@@ -14,6 +14,8 @@ import * as render from './render';
 import {spokenConfirm} from '../voice/speech';
 
 export const CONFIRM='b:',CANCEL='x:',ACTION='a:',ACTION_NO='n:';
+/** "I have funded it" on a buy that stopped for want of SOL. */
+export const FUNDED='f:';
 
 export type Ctx={
  userId:string;

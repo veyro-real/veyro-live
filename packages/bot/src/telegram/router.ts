@@ -17,7 +17,7 @@ import {intentFromSpeech,refusalFor,type Intent} from './intent';
 import type * as app from '../app';
 import * as render from './render';
 import {WHY} from './render';
-import {ACTION,ACTION_NO,CANCEL,CONFIRM,report,runCommand,type Ctx} from './handlers';
+import {ACTION,ACTION_NO,CANCEL,CONFIRM,FUNDED,report,runCommand,type Ctx} from './handlers';
 import {stepAction,stepMessage,TUTORIAL,TUTORIAL_DO} from './tutorial';
 import {pickTrending,TRENDING_POOL} from '../trade/pick-trending';
 
@@ -120,7 +120,9 @@ async function onCallback(update:TelegramUpdate,deps:Deps):Promise<void>{
  // cost someone a confirmed action.
  await deps.out.answer(q.id).catch(()=>{});
  if(!chatId||!q.data)return;
- const send=(text:string)=>deps.out.send(chatId,text);
+ // Takes a keyboard: a callback can answer with one, and a funding offer is
+ // useless without its buttons.
+ const send=(text:string,keyboard?:InlineKeyboard)=>deps.out.send(chatId,text,keyboard);
 
  const id=q.data.slice(2);
 
@@ -164,14 +166,51 @@ async function onCallback(update:TelegramUpdate,deps:Deps):Promise<void>{
   await deps.pending.take(id);
   return void await send('Cancelled. Nothing was spent.');
  }
+ // "I have funded it" on a trade that was held for want of SOL. The record
+ // was put back when we offered to hold it, so this is an ordinary buy.
+ if(q.data.startsWith(FUNDED)){
+  const held=await deps.pending.take(id);
+  if(!held)return void await send('That trade is no longer held. Say it again.');
+  return void await settleBuy(held,update,deps,send);
+ }
+
  if(!q.data.startsWith(CONFIRM))return;
 
  // Consuming the record here is what makes a replayed tap safe. The
  // update_id passed to buy() is the second guard, inside the money path.
  const p=await deps.pending.take(id);
  if(!p)return void await send('That confirmation expired or was already used. Send /buy again.');
+ return void await settleBuy(p,update,deps,send);
+}
+
+/**
+ * Runs a confirmed buy and answers for it.
+ *
+ * Being short of SOL is the one refusal that is not the end of the
+ * conversation: the user has already said what they want and tapped to
+ * authorise it, so the trade is held and they are given the address, the
+ * amount and a way to pay. Every other refusal is reported as it is.
+ */
+async function settleBuy(
+ p:PendingBuy,update:TelegramUpdate,deps:Deps,send:(t:string,k?:InlineKeyboard)=>Promise<void>,
+):Promise<void>{
  const outcome=await deps.app.buy(p.userId,p.mint,p.sol,String(update.update_id));
- return void await send(report(outcome,'Bought'));
+ if(outcome.result.ok||outcome.result.reason!=='INSUFFICIENT_BALANCE'){
+  return void await send(report(outcome,'Bought'));
+ }
+
+ // Hold it under a fresh id so the funding tap can finish it later.
+ const again=randomBytes(6).toString('hex');
+ await deps.pending.put(again,p);
+ const w=await deps.app.ensureWallet(p.userId);
+ const {text,keyboard}=render.needsFunding({
+  pubkey:w.pubkey,
+  haveLamports:BigInt(w.lamports??'0'),
+  needLamports:BigInt(Math.round(p.sol*1e9)),
+  symbol:outcome.position.symbol||null,
+  retryData:FUNDED+again,
+ });
+ return void await send(text,keyboard);
 }
 
 
