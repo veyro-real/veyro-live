@@ -85,12 +85,11 @@ test('the confirmation names the token and the venue it routes through',async()=
    priceImpactPct:0.42,slippageBps:300,route:['Raydium','Meteora']},
  });
  assert.match(text,/SATOSHINU/,'the token is not named');
+ assert.match(text,/^SATOSHINU/,'the name should lead, not the mint');
  assert.match(text,/Raydium/,'the venue is not shown');
- assert.match(text,/Meteora/,'a second hop is dropped');
- assert.match(text,/12345\.67/,'decimals were not applied to the amount');
- assert.match(text,/11728\.3865/,'the minimum received is missing');
+ assert.match(text,/12,345\.67/,'decimals and grouping were not applied');
+ assert.match(text,/11,728\.38/,'the minimum received is missing');
  assert.match(text,/0\.42%/,'price impact is missing');
- assert.match(text,/3\.00%/,'max slippage is missing');
  assert.doesNotMatch(text,/12345670000/,'raw base units leaked into the copy');
 });
 

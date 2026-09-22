@@ -271,9 +271,11 @@ export function why(row:ScanRow|null,mint:string):string{
 const units=(raw:string,decimals:number|null):string=>{
  if(decimals===null)return raw;
  const n=BigInt(raw),d=BigInt(10)**BigInt(decimals);
- const whole=(n/d).toString();
+ // Grouped: a memecoin balance runs to seven figures and an ungrouped one
+ // cannot be read at a glance, which is the only way anyone reads this.
+ const whole=(n/d).toString().replace(/\B(?=(\d{3})+(?!\d))/g,',');
  const frac=(n%d).toString().padStart(decimals,'0').replace(/0+$/,'');
- return frac?whole+'.'+frac.slice(0,4):whole;
+ return frac?whole+'.'+frac.slice(0,2):whole;
 };
 
 /**
@@ -284,69 +286,73 @@ const units=(raw:string,decimals:number|null):string=>{
  */
 export function quoteLines(q:BuyPreview['quote'],decimals:number|null=null):string[]{
  if(!q)return ['Could not price this route just now.'];
+ const venue=q.route.length?(' · via '+q.route[0]):'';
  return [
-  'You get about '+units(q.outAmount,decimals)+
-   ', at least '+units(q.minOutAmount,decimals),
-  'Price impact '+q.priceImpactPct.toFixed(2)+'% · max slippage '+
-   (q.slippageBps/100).toFixed(2)+'%',
-  q.route.length?('Route: '+q.route.join(' → ')):'Route: unknown',
+  'Price impact '+q.priceImpactPct.toFixed(2)+'% · min '+
+   units(q.minOutAmount,decimals)+' after slippage'+venue,
  ];
 }
 
 export function confirm(
  mint:string,solAmount:number,row:ScanRow|null,paper=false,preview?:BuyPreview,
 ):string{
- const title=(()=>{
-  const symbol=row?.candidate.symbol??preview?.symbol??null;
-  const name=row?.candidate.name??preview?.name??null;
-  if(symbol&&name&&name!==symbol)return symbol+' · '+name;
-  return symbol??name??null;
- })();
- const priced=preview?quoteLines(preview.quote,preview.decimals):[];
- const head='Buy '+solAmount+' SOL';
- // Defaults to the live warning: if the mode could not be read, the cautious
- // sentence is the true one. Saying "real funds" about a simulated trade is
- // the same kind of lie as the reverse, and a demo says it on a screen.
+ const symbol=row?.candidate.symbol??preview?.symbol??null;
+ const name=row?.candidate.name??preview?.name??null;
+ const title=symbol&&name&&name!==symbol?(symbol+' · '+name):(symbol??name);
+
+ // The headline is what is being bought and what comes back. Everything
+ // else is a qualifier on that line, and the mint is reference rather than
+ // part of the decision, so it sits at the bottom.
+ const out=preview?.quote
+  ? ' \u2192 about '+units(preview.quote.outAmount,preview.decimals??null)+
+    (symbol?(' '+symbol):'')
+  : '';
+ const head='Buy '+solAmount+' SOL'+out;
+
  const tail=paper
   ? 'Paper trade. Simulated at a live quote; no SOL moves and no transaction exists.'
   : 'Real funds, and it cannot be undone.';
+
+ const priced=preview?quoteLines(preview.quote,preview.decimals??null):[];
+
  if(!row){
   return [
    title,
-   head+' of',
-   mint,
+   head,
    '',
    ...priced,
-   priced.length?'':null,
-   'I have no measurement for this token. It was never assessed here, so '+
-   'nothing below the filter has checked it.',
+   'Never assessed by the filter, so nothing here has checked it.',
    '',
    tail,
+   '',
+   mint,
   ].filter(l=>l!==null&&l!==undefined).join('\n');
  }
+
  const a=row.assessment,f=a.features;
  const facts=[
   'score '+a.score,
   f.top10Pct===null?null:('float top-10 '+f.top10Pct+'%'),
   f.liquiditySol===null?null:('liquidity '+f.liquiditySol+' SOL'),
+  f.ageSeconds===null?null:('first seen '+f.ageSeconds+'s ago'),
  ].filter(Boolean).join(' · ');
  const authorities=[
   f.mintAuthorityRevoked===true?'mint authority revoked':'mint authority NOT revoked',
   f.freezeAuthorityRevoked===true?'freeze revoked':'freeze NOT revoked',
  ].join(' · ');
+
  return [
-  title??(row.candidate.symbol+' · '+row.candidate.name),
+  title,
   head,
   '',
+  ...priced,
   facts,
   authorities,
-  'first seen '+f.ageSeconds+'s ago',
-  ...(priced.length?['',...priced]:[]),
-  '',
-  mint,
   '',
   tail,
- ].join('\n');
+  '',
+  mint,
+ ].filter(l=>l!==null&&l!==undefined).join('\n');
 }
 
 /** What a spoken instruction was understood to mean, for the confirmation. */
