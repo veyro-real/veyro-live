@@ -112,7 +112,12 @@ async function onMessage(update:TelegramUpdate,deps:Deps):Promise<void>{
 async function onCallback(update:TelegramUpdate,deps:Deps):Promise<void>{
  const q=update.callback_query!;
  const chatId=q.message?.chat.id===undefined?null:String(q.message.chat.id);
- await deps.out.answer(q.id);
+ // Only dismisses the spinner on the button. Its id expires after about a
+ // minute, so a tap that lands during a redeploy fails it — and because this
+ // was awaited before the work, the failure threw, the tap was lost, and the
+ // user got a raw Telegram error instead of their trade. Cosmetics must never
+ // cost someone a confirmed action.
+ await deps.out.answer(q.id).catch(()=>{});
  if(!chatId||!q.data)return;
  const send=(text:string)=>deps.out.send(chatId,text);
 

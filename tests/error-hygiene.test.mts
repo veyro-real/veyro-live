@@ -20,10 +20,12 @@ const ALLOWED:Record<string,{swallows:number;why:string}>={
  'packages/bot/src/voice/tts.ts':{swallows:1,
   why:'Temp-dir cleanup in a finally. Failing to unlink must not mask the '+
       'result the caller is waiting for.'},
- 'packages/bot/src/telegram/router.ts':{swallows:1,
-  why:'Last-resort reply to Telegram. If telling the user about the failure '+
-      'also fails there is nowhere left to report it, and the webhook still '+
-      'owes Telegram a 200.'},
+ 'packages/bot/src/telegram/router.ts':{swallows:2,
+  why:'Two. The last-resort reply to Telegram: if telling the user about a '+
+      'failure also fails there is nowhere left to report it, and the webhook '+
+      'still owes Telegram a 200. And answerCallbackQuery, which only '+
+      'dismisses the spinner — its id expires in about a minute, so letting '+
+      'it throw lost the tap that confirmed a trade.'},
  'apps/control-plane/app/api/state/route.ts':{swallows:1,
   why:'An unauthenticated caller is a valid state for this route, not an '+
       'error: it renders the signed-out view.'},
