@@ -14,11 +14,12 @@
 import type {Position,SwapResult,TradeOutcome} from '../types';
 import {
  claimSpend,findPosition,listPositions,openPosition,readLimits,readStrategy,
- settleSpend,updatePosition,
+ settleSpend,updatePosition,linkReservation,openReservationFor,
 } from '../db';
 import {claimRequest,finishRequest} from '../store';
 import {ensureKeypair,spendableLamports} from '../wallet/custody';
-import {SOL_MINT,buildSwap,confirm,quote,signSimulateSend,tokensReceived} from './jupiter';
+import {SOL_MINT,buildSwap,confirm,quote,signSimulateSend,signatureSeen,tokensReceived} from './jupiter';
+import {verdictForUnconfirmed} from './reconcile-verdict';
 
 const tradingEnabled=()=>process.env.VEYRO_TRADING_ENABLED==='true';
 
@@ -105,6 +106,10 @@ export async function buy(
    ?'POSITION_ALREADY_OPEN':'OPEN_POSITION_FAILED';
   return phantom(userId,mint,symbol,lamports,reason);
  }
+ // Tie the reservation to the position now, not at settlement. A send that
+ // times out leaves the reservation open on purpose, and without this link
+ // reconcile has no way to find it again.
+ await linkReservation(claim.reservationId,position.id).catch(()=>{});
  await finishRequest(userId,'buy:'+key,position.id);
 
  let signature:string|null=null;
@@ -195,7 +200,26 @@ export async function reconcile(userId:string):Promise<Position[]>{
    continue;
   }
   let outcome:'FINALIZED'|'FAILED';
-  try{outcome=await confirm(signature,5_000);}catch{continue;} // still unresolved
+  try{
+   outcome=await confirm(signature,5_000);
+  }catch{
+   // Not confirmed yet. A transaction can only land while its blockhash is
+   // current, so a signature the cluster has never seen, well past that, was
+   // dropped and never will. Left alone it stayed UNKNOWN forever and its
+   // reservation consumed the daily cap for a trade that never happened.
+   const seenOnChain=await signatureSeen(signature).catch(()=>true);
+   const ageMs=Date.now()-new Date(p.openedAt).getTime();
+   if(verdictForUnconfirmed({seenOnChain,ageMs})!=='DROPPED')continue;
+
+   const reservation=await openReservationFor(p.id);
+   if(reservation)await settleSpend(reservation,'RELEASED',p.id);
+   await updatePosition(p.id,{
+    status:'FAILED',
+    reason:'DROPPED_NEVER_LANDED',
+    closedAt:new Date().toISOString(),
+   });
+   continue;
+  }
   if(outcome==='FAILED'){
    await updatePosition(p.id,{
     status:p.exitSignature?'OPEN':'FAILED',

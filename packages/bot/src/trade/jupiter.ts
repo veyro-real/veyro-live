@@ -120,6 +120,12 @@ export async function confirm(signature:string,timeoutMs=60_000):Promise<'FINALI
  throw Error('CONFIRM_TIMEOUT');
 }
 
+/** Whether the cluster knows this signature at all, history included. */
+export async function signatureSeen(signature:string):Promise<boolean>{
+ const {value}=await mainnet().getSignatureStatuses([signature],{searchTransactionHistory:true});
+ return value[0]!==null&&value[0]!==undefined;
+}
+
 /** Token balance change for `mint` in a settled transaction. */
 export async function tokensReceived(signature:string,owner:string,mint:string):Promise<string|null>{
  const tx=await mainnet().getTransaction(signature,{maxSupportedTransactionVersion:0,commitment:'confirmed'});

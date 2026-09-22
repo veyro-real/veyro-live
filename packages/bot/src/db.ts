@@ -144,6 +144,26 @@ export async function settleSpend(reservationId:string,state:'SETTLED'|'RELEASED
  ok(null,error,'SETTLE_SPEND');
 }
 
+/**
+ * Ties a reservation to the position it paid for, at claim time.
+ *
+ * veyro_settle_spend only records the position when it settles, so a
+ * reservation left open by a timeout had nothing pointing back at it and
+ * reconcile could not find it to release.
+ */
+export async function linkReservation(reservationId:string,positionId:string){
+ const {error}=await db().from('veyro_spend_ledger')
+  .update({position_id:positionId}).eq('id',reservationId).eq('state','RESERVED');
+ ok(null,error,'LINK_RESERVATION');
+}
+
+/** The still-open reservation for a position, if one is outstanding. */
+export async function openReservationFor(positionId:string):Promise<string|null>{
+ const {data,error}=await db().from('veyro_spend_ledger')
+  .select('id').eq('position_id',positionId).eq('state','RESERVED').maybeSingle();
+ return ok(data,error,'OPEN_RESERVATION')?.id??null;
+}
+
 // ---------------------------------------------------------------- positions
 
 export async function openPosition(p:{
