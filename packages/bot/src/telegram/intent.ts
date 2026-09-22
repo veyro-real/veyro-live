@@ -46,11 +46,23 @@ const TENS:Record<string,number>={twenty:20,thirty:30,forty:40,fifty:50,sixty:60
  */
 export function spokenNumber(phrase:string):number|null{
  let total=0,current=0,seen=false;
+ // English writes tens before units within a group: "twenty five", never
+ // "five twenty". A unit followed by a ten is a price said aloud — "three
+ // fifty" is 3.50 — and adding them gave 53. Same for "eight sixty-nine"
+ // (77) and "nine ninety nine" (108). Amounts are the one thing this module
+ // will not approximate, so an ungrammatical sequence ends the number.
+ let tens=false,units=false;
  for(const word of phrase.split(/[\s-]+/).filter(Boolean)){
-  if(word in ONES){current+=ONES[word];seen=true;}
-  else if(word in TENS){current+=TENS[word];seen=true;}
-  else if(word==='hundred'){current=(current||1)*100;seen=true;}
-  else if(word==='thousand'){total+=(current||1)*1000;current=0;seen=true;}
+  if(word in ONES){
+   if(units)return null;
+   current+=ONES[word];seen=true;units=true;
+  }
+  else if(word in TENS){
+   if(tens||units)return null;
+   current+=TENS[word];seen=true;tens=true;
+  }
+  else if(word==='hundred'){current=(current||1)*100;seen=true;tens=false;units=false;}
+  else if(word==='thousand'){total+=(current||1)*1000;current=0;seen=true;tens=false;units=false;}
   else if(word==='and'&&seen)continue;
   else if(word==='a'&&!seen)continue; // "a hundred dollars"
   else return null;
@@ -135,8 +147,22 @@ export function refusalFor(raw:string):string|null{
  }
 
  if(BUY_VERB.test(t)){
-  return 'I heard a buy but no amount, and an amount is the one thing I will '+
-   'not guess at. Say how much — "buy 0.1 sol of it", or "spend five dollars".';
+  // An amount that was said but could not be read is a different problem
+  // from no amount at all, and the fix for it is different too.
+  const unreadable=/[a-z]+(?:[\s-][a-z]+)*\s*(?:dollars?|bucks|usd|cents?|sol)\b/.test(t)
+   &&usdFrom(t)===null&&solFrom(t)===null;
+  return unreadable
+   ?'I heard an amount but could not read it. Say it as one number — '+
+    '"three dollars fifty", or "3.50 dollars" — and I will not guess at it.'
+   :'I heard a buy but no amount, and an amount is the one thing I will '+
+    'not guess at. Say how much — "buy 0.1 sol of it", or "spend five dollars".';
+ }
+
+ // An amount and a target, but nothing that means buy. Naming the missing
+ // word is more use than listing every command.
+ if((usdFrom(t)!==null||solFrom(t)!==null)&&TRENDING.test(t)){
+  return 'I heard an amount and what to put it in, but not whether to buy. '+
+   'Say "buy" or "spend" — "spend 69 cents on the dumbest meme coin".';
  }
 
  if(/\blimits?\b/.test(t)){
