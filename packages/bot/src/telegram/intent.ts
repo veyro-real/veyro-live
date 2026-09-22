@@ -102,6 +102,15 @@ function solFrom(t:string):number|null{
  return digits!==null?digits:wordsBefore(t,'sol\\b');
 }
 
+/**
+ * Ways of saying buy.
+ *
+ * Only verbs that mean nothing else. "grab" and "get" are excluded on
+ * purpose: this branch refuses rather than falling through, so "grab my
+ * positions" would return a refusal instead of the positions it asked for.
+ */
+const BUY_VERB=/\b(buy|buys|buying|spend|spends|spending|purchase|purchases|ape|apes|aping)\b/;
+
 /** "the dumbest memecoin", "the best solana meme coin": a pick, not a symbol. */
 const TRENDING=/dumbest|trending|whatever is hot|top meme|best(?:\s+\w+){0,2}\s+meme/;
 
@@ -139,7 +148,7 @@ export function intentFromSpeech(raw:string):Intent|null{
  const edge=t.match(/(?:my (?:edge|strategy) is|set my (?:edge|strategy) to)\s+(.+)/);
  if(edge)return {kind:'edge',text:edge[1].trim()};
 
- if(/\bbuy\b/.test(t)){
+ if(BUY_VERB.test(t)){
   // Dollars first: "buy one hundred dollars of X" names its unit explicitly,
   // where a bare number after "buy" has always meant SOL.
   const usd=usdFrom(t);
@@ -152,11 +161,11 @@ export function intentFromSpeech(raw:string):Intent|null{
   }
 
   if(usd!==null){
-   const m=t.match(/(?:worth of|of)\s+([a-z0-9]{2,15})\b/);
+   const m=t.match(/(?:worth of|of|on|into|in to)\s+(?:the\s+)?([a-z0-9]{2,15})\b/);
    return m?{kind:'buyBySymbol',symbol:m[1],usd}:null;
   }
 
-  const m=t.match(/buy\s+([\d.]+)\s*sol\s+(?:of\s+|worth of\s+)?([a-z0-9]{2,15})\b/);
+  const m=t.match(/([\d.]+)\s*sol\s+(?:of\s+|worth of\s+|on\s+|into\s+)?(?:the\s+)?([a-z0-9]{2,15})\b/);
   const sol=num(m?.[1]);
   if(!m||sol===null)return null; // No amount, no trade.
   return {kind:'buyBySymbol',symbol:m[2],sol};
