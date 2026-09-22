@@ -4,6 +4,17 @@ Schema changes apply themselves on deploy. Add a numbered `.sql` file to
 `supabase/migrations/` and ship; the control plane applies it before it
 serves its first request.
 
+## Current state
+
+0001–0004 are applied and recorded in `veyro_migrations`. They were applied by
+a hand run of `pnpm db:migrate` from a laptop, not by a deploy, because
+`DATABASE_URL` is not set on the Railway service yet. Until it is, deploys do
+not self-migrate and the next schema change needs another hand run.
+
+Set it with `node scripts/set-railway-var.mjs DATABASE_URL`, which reads the
+value from stdin so it never reaches argv or shell history, and refuses the
+transaction pooler outright.
+
 ## One-time setup
 
 Set `DATABASE_URL` on the `veyro-live` Railway service. Supabase dashboard →
