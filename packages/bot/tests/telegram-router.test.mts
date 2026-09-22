@@ -556,3 +556,32 @@ test('the transcript is echoed before a trending buy, like any other',async()=>{
  await route(voiceNote(4102),h.deps);
  assert.match(h.sent.map(x=>x.text).join('\n'),/I heard/i);
 });
+
+// Telegram fetches the image itself and a pump.fun token's metadata usually
+// points at IPFS it cannot reach. Losing the picture must not lose the trade.
+test('a buy still confirms when telegram cannot fetch the image',async()=>{
+ const h=harness();
+ h.deps.image=(async()=>'https://ipfs.example/unreachable.png') as any;
+ h.deps.out.photo=(async()=>{throw Error('TELEGRAM_HTTP_400: wrong file identifier');}) as any;
+ await route(message('/buy '+MINT+' 0.05'),h.deps);
+ const last=h.last();
+ assert.ok(last,'nothing was sent at all');
+ assert.match(last.text,new RegExp(MINT),'the confirmation was lost with the image');
+ assert.ok(last.keyboard?.flat().some(b=>/confirm/i.test(b.text)),
+  'no confirm button, so the trade cannot proceed');
+});
+
+test('a working image still shows as a photo',async()=>{
+ const h=harness({
+  explain:async()=>({
+   candidate:{mint:MINT,symbol:'WIF',name:'WIF',launchpad:'pump.fun',creator:'c',
+    firstSeen:new Date().toISOString(),initialBuySol:1,marketCapSol:10,
+    uri:'ipfs://meta'},
+   assessment:{passed:true,score:70,rejections:[],features:{},flow:{uniqueBuyers:2,netSol:1}},
+  } as any),
+ });
+ h.deps.image=(async()=>'https://cdn.example/ok.png') as any;
+ await route(message('/buy '+MINT+' 0.05'),h.deps);
+ assert.equal(h.photos.length,1,'expected the photo path');
+ assert.equal(h.sent.length,0,'should not also send text');
+});

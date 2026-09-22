@@ -126,8 +126,18 @@ export const handlers:Handlers={
   const {mode}=await deps.app.tradingMode(userId);
   const caption=render.confirm(c.mint,c.sol,row,mode==='paper');
   const image=row?await deps.image(row.candidate.uri):null;
-  if(image)await deps.out.photo(chatId,image,caption,keyboard);
-  else await send(caption,keyboard);
+  // Telegram fetches the image itself, and a token's metadata often points at
+  // IPFS it cannot reach — which fails the whole send. The picture is
+  // decoration; the confirmation and its keyboard are the commit point, so
+  // losing the first must never cost the second.
+  let shown=false;
+  if(image){
+   try{
+    await deps.out.photo(chatId,image,caption,keyboard);
+    shown=true;
+   }catch{/* falls through to text */}
+  }
+  if(!shown)await send(caption,keyboard);
 
   // Spoken afterwards, never instead. The written confirmation and its
   // keyboard are the commit point; audio is an extra.

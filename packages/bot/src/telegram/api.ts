@@ -32,7 +32,15 @@ export function telegramApi(opts:{token?:string;fetch?:typeof fetch}={}):Outbox{
  }
 
  async function check(res:Response):Promise<void>{
-  if(!res.ok)throw Error('TELEGRAM_HTTP_'+res.status);
+  // Telegram puts the actual reason in the body of a 4xx, so reading only
+  // the status throws away the one part worth having. "TELEGRAM_HTTP_400"
+  // says nothing; "wrong file identifier" says where to look.
+  if(!res.ok){
+   const detail=await res.json().then(
+    (b:{description?:string})=>b?.description,
+   ).catch(()=>undefined);
+   throw Error('TELEGRAM_HTTP_'+res.status+(detail?': '+detail:''));
+  }
   const body=await res.json() as {ok:boolean;description?:string};
   if(!body.ok)throw Error('TELEGRAM_API: '+(body.description??'unknown'));
  }
