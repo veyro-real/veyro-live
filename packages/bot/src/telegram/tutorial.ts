@@ -47,7 +47,9 @@ export const STEPS:Step[]=[
    'off.\n\n'+
    '/limits 0.5 2 24\n'+
    'Half a SOL per trade, two a day, dead in 24 hours.\n\n'+
-   'The expiry is the good bit. Walk away, it lapses, nothing can spend.',
+   'The expiry is the good bit. Walk away, it lapses, nothing can spend.\n\n'+
+   'You are on live money by default. Want to practise first? /paper trades '+
+   'simulated SOL at real prices, and /live switches back.',
   action:{
    label:'Set 0.5 · 2 SOL · 24h',
    command:{kind:'limits',set:{maxTradeSol:0.5,dailyCapSol:2,hours:24}},

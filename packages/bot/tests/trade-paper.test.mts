@@ -138,3 +138,14 @@ test('the paper balance is not debited when the position cannot open',async()=>{
  await paperBuy('u-1','MintAAA',1_000_000n,'AAA',deps as any);
  assert.equal(debited,false,'simulated funds were taken for a trade that never opened');
 });
+
+// The database default is live. The code's fallback is not, and must not be.
+test('an unreadable user is treated as paper, never as live',async()=>{
+ const {buy}=await import('../src/app');
+ assert.equal(typeof buy,'function');
+ const src=await (await import('node:fs/promises'))
+  .readFile(new URL('../src/app.ts',import.meta.url),'utf8');
+ assert.match(src,/mode!=='live'/,
+  'buy must route to paper unless the row explicitly says live: a row that '+
+  'fails to load must not spend real money');
+});
