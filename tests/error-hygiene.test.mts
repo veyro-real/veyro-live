@@ -20,6 +20,12 @@ const ALLOWED:Record<string,{swallows:number;why:string}>={
  'packages/bot/src/voice/tts.ts':{swallows:1,
   why:'Temp-dir cleanup in a finally. Failing to unlink must not mask the '+
       'result the caller is waiting for.'},
+ 'packages/bot/src/trade/execute.ts':{swallows:1,
+  why:'Linking a reservation to its position is bookkeeping for reconcile, '+
+      'and it runs between creating the position and sending the swap. '+
+      'Letting it throw there would abandon a buy that is otherwise fine, '+
+      'with the position row already written and the reservation held — '+
+      'worse than the degraded reconcile a lost link causes.'},
  'packages/bot/src/telegram/router.ts':{swallows:2,
   why:'Two. The last-resort reply to Telegram: if telling the user about a '+
       'failure also fails there is nowhere left to report it, and the webhook '+
