@@ -67,6 +67,24 @@ export function failure(message:string):string{
  return 'That failed: '+message;
 }
 
+/**
+ * A trade that was sent but has not confirmed yet.
+ *
+ * It may still land, so it must not read as a failure. The signature is what
+ * lets someone check for themselves.
+ */
+export function unresolved(signature:string,positionId:string):string{
+ return [
+  'Sent, but not confirmed yet. It may still land.',
+  '',
+  'Do not send it again — a second one would be a second trade.',
+  '/positions will show it once it settles, either way.',
+  '',
+  'Signature: '+signature,
+  positionId?('Position: '+positionId):'',
+ ].filter(Boolean).join('\n');
+}
+
 export function help():string{
  return [
   'What I answer:',

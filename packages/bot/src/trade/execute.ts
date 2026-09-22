@@ -63,6 +63,17 @@ function phantom(userId:string,mint:string,symbol:string,lamports:bigint,reason:
  };
 }
 
+/**
+ * How long a trade waits for the chain before answering.
+ *
+ * The Telegram webhook awaits the whole route, so this wait is the HTTP
+ * request's wait, and Telegram gives up well before the 60 seconds confirm()
+ * defaults to — the user taps Confirm, the spinner flashes, and nothing comes
+ * back. Most Solana confirmations land in a few seconds; anything slower is
+ * reported as sent-but-unconfirmed and finished by reconcile.
+ */
+export const CONFIRM_BUDGET_MS=20_000;
+
 export async function buy(
  userId:string,mint:string,lamports:bigint,symbol:string,key:string,
 ):Promise<TradeOutcome>{
@@ -120,7 +131,7 @@ export async function buy(
   signature=await signSimulateSend(tx,kp);
   position=await updatePosition(position.id,{entrySignature:signature,reason:'SUBMITTED'});
 
-  const outcome=await confirm(signature);
+  const outcome=await confirm(signature,CONFIRM_BUDGET_MS);
   if(outcome==='FAILED'){
    // Confirmed failure means no value moved, so the headroom comes back.
    await settleSpend(claim.reservationId,'RELEASED',position.id);
@@ -169,7 +180,7 @@ export async function sell(userId:string,positionId:string,key:string):Promise<T
   signature=await signSimulateSend(tx,kp);
   current=await updatePosition(current.id,{exitSignature:signature,reason:'SUBMITTED'});
 
-  const outcome=await confirm(signature);
+  const outcome=await confirm(signature,CONFIRM_BUDGET_MS);
   if(outcome==='FAILED'){
    current=await updatePosition(current.id,{status:'OPEN',reason:'EXIT_FAILED'});
    return {position:current,result:{ok:false,reason:'EXIT_FAILED',signature}};

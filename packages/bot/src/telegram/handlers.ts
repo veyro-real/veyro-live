@@ -33,7 +33,12 @@ type Handlers={
 
 function report(outcome:app.TradeOutcome,verb:string):string{
  const {position,result}=outcome;
- if(!result.ok)return render.denial(result.reason);
+ if(!result.ok){
+  // Sent but not yet proven is not a failure. Saying it did not go through
+  // invites someone to send it again, which is how you buy a thing twice.
+  if(result.signature)return render.unresolved(result.signature,position.id);
+  return render.denial(result.reason);
+ }
  // A paper fill has no signature because no transaction exists. Printing an
  // empty one would suggest a trade that can be looked up on chain.
  if(result.signature===null){
