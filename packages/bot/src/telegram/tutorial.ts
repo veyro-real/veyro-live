@@ -56,7 +56,10 @@ export const STEPS:Step[]=[
  {
   title:'Put something in it',
   body:
-   '/wallet gives you an address. Send SOL there and you are funded.\n\n'+
+   '/wallet gives you an address, and a button to buy SOL with a card if you '+
+   'do not already hold some. Buy it, send it there, and you are funded.\n\n'+
+   'Send SOL on Solana and nothing else. Another coin, or SOL bridged to '+
+   'another chain, is lost.\n\n'+
    'Leave about 0.012 SOL of room. Every swap pays network and priority '+
    'fees, and Jupiter opens and closes a wrapped-SOL account on the way '+
    'through. Spend down to the last lamport and the next trade just fails.',

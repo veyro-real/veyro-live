@@ -28,6 +28,11 @@ export type TelegramUpdate={
  callback_query?:TelegramCallbackQuery;
 };
 
-export type InlineButton={text:string;callback_data:string};
+export type InlineButton=
+ |{text:string;callback_data:string}
+ // Opens outside Telegram. Used for the fiat onramp: Telegram restricts
+ // in-app blockchain functionality to TON, so a Solana purchase flow cannot
+ // live in a Mini App and has to hand off to the browser.
+ |{text:string;url:string};
 /** Rows of buttons. Telegram caps callback_data at 64 bytes. */
 export type InlineKeyboard=InlineButton[][];

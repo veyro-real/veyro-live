@@ -71,6 +71,43 @@ const USAGE:Record<string,string>={
 
 export const usage=(command:string):string=>USAGE[command]??help();
 
+/**
+ * Where a user buys SOL.
+ *
+ * MoonPay's consumer flow, which takes Apple Pay and lands SOL on Solana.
+ * Deliberately carries no destination address: the onramp would treat a
+ * prefilled address as the buyer's own self-custody wallet, and this one is
+ * custodial. Under the Travel Rule a hosted destination needs the custodian
+ * registered, which Veyro is not. The user pastes it themselves.
+ */
+export const ONRAMP_URL='https://buy.moonpay.com/?defaultCurrencyCode=sol';
+
+export function walletMessage(pubkey:string,lamports:string|null):{
+ text:string;keyboard:InlineKeyboard;
+}{
+ const balance=lamports===null
+  ? 'Balance: could not be read just now. Your funds are not affected; try again in a moment.'
+  : 'Balance: '+sol(lamports)+' SOL';
+
+ const text=[
+  'Your deposit address:',
+  pubkey,
+  '',
+  balance,
+  '',
+  'To fund it: buy SOL, then send it to the address above.',
+  '',
+  'Send SOL on Solana and nothing else. A different coin, or SOL on another '+
+  'chain, is lost and cannot be recovered.',
+  '',
+  'Keep about 0.012 SOL spare for network fees, or the next trade fails.',
+  '',
+  CUSTODY,
+ ].join('\n');
+
+ return {text,keyboard:[[{text:'Buy SOL with a card',url:ONRAMP_URL}]]};
+}
+
 export function mode(m:'paper'|'live',paperLamports:string):string{
  if(m==='paper'){
   return [
