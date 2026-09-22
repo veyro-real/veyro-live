@@ -38,6 +38,28 @@ const DENIALS:Record<string,string>={
 
 export const denial=(reason:string):string=>DENIALS[reason]??('The trade did not go through: '+reason+'.');
 
+/**
+ * Anything that reaches the router's catch. Codes are for us; this is what
+ * the user reads. Unknown failures still show their message rather than a
+ * shrug, because a message we have not seen before is the one worth reading.
+ */
+const FAILURES:[RegExp,string][]=[
+ [/CREDENTIALS_KEY_MISMATCH/,
+  'This wallet cannot be opened. Its key was written before a security '+
+  'rotation, so the service can no longer sign for it. Nothing has been '+
+  'spent. Do not deposit to it — ask an operator to reset it first.'],
+ [/SUPABASE_NOT_CONFIGURED|SUPABASE_STORE_ERROR|DB_/,
+  'Something went wrong on our side, not yours. Nothing was spent. Try again '+
+  'in a moment.'],
+ [/MAINNET_RPC_NOT_CONFIGURED|RPC_/,
+  'I could not reach Solana just now. Nothing was spent. Try again shortly.'],
+];
+
+export function failure(message:string):string{
+ for(const [pattern,text] of FAILURES)if(pattern.test(message))return text;
+ return 'That failed: '+message;
+}
+
 export function help():string{
  return [
   'What I answer:',

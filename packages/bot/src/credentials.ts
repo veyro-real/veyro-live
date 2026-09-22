@@ -20,9 +20,24 @@ export function decryptSecret(box:unknown):string|null{
  if(!box||typeof box!=='object')return null;
  const b=box as Partial<SecretBox>;
  if(!b.iv||!b.tag||!b.value)return null;
- const decipher=createDecipheriv('aes-256-gcm',key(),Buffer.from(b.iv,'base64'));
- decipher.setAuthTag(Buffer.from(b.tag,'base64'));
- return Buffer.concat([decipher.update(Buffer.from(b.value,'base64')),decipher.final()]).toString('utf8');
+ try{
+  const decipher=createDecipheriv('aes-256-gcm',key(),Buffer.from(b.iv,'base64'));
+  decipher.setAuthTag(Buffer.from(b.tag,'base64'));
+  return Buffer.concat([decipher.update(Buffer.from(b.value,'base64')),decipher.final()]).toString('utf8');
+ }catch{
+  // GCM reports a wrong key and a tampered ciphertext identically, and Node
+  // words it as "Unsupported state or unable to authenticate data" — which
+  // reached a user verbatim and told them nothing. The overwhelmingly likely
+  // cause is a secret written before VEYRO_CREDENTIALS_KEY was rotated.
+  //
+  // Not returning null: null already means "no secret stored", and a stored
+  // secret that cannot be opened is a different situation with a different
+  // answer. Conflating them would silently mint a replacement wallet and
+  // hide whatever the old address holds.
+  throw Error('CREDENTIALS_KEY_MISMATCH: a stored secret cannot be opened '+
+   'with the current VEYRO_CREDENTIALS_KEY. It was written under a previous '+
+   'key, so this service can no longer sign for it.');
+ }
 }
 export async function setCredential(name:CredentialName,value:string){
  if(!names.includes(name))throw Error('INVALID_CREDENTIAL');

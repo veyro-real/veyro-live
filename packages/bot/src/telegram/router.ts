@@ -61,7 +61,7 @@ export async function route(update:TelegramUpdate,deps:Deps):Promise<void>{
   const chatId=chatOf(update);
   if(!chatId)return;
   // Never rethrow: the webhook owes Telegram a 200 either way.
-  try{await deps.out.send(chatId,'That failed: '+(e as Error).message);}catch{}
+  try{await deps.out.send(chatId,render.failure((e as Error).message));}catch{}
  }
 }
 
