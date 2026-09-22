@@ -19,6 +19,7 @@ import * as render from './render';
 import {WHY} from './render';
 import {ACTION,ACTION_NO,CANCEL,CONFIRM,report,runCommand,type Ctx} from './handlers';
 import {stepAction,stepMessage,TUTORIAL,TUTORIAL_DO} from './tutorial';
+import {pickTrending,TRENDING_POOL} from '../trade/pick-trending';
 
 /** The part of lib/app the Telegram channel is allowed to call. */
 import type {
@@ -221,15 +222,24 @@ async function onVoice(update:TelegramUpdate,deps:Deps):Promise<void>{
   const {sol,note}=priced;
 
   if(intent.kind==='buyTrending'){
-   // No symbol was named, so take the loudest thing and show it in full.
-   // The trade still has to be confirmed like any other.
-   const rows=await deps.app.trending(1);
+   // No symbol was named, so pick one of the loud ones. Not the loudest:
+   // that is the same token every time, and once held it refuses every later
+   // buy with POSITION_ALREADY_OPEN. A boost is paid placement anyway, so
+   // the top of the list is who spent most on visibility, not a judgement.
+   const rows=await deps.app.trending(TRENDING_POOL);
    if(rows.length===0){
     return void await send(heard+'\n\nNothing is trending right now, so there is '+
      'nothing for me to pick. Try /trending in a moment.');
    }
-   await send(heard+note);
-   return runCommand({kind:'buy',mint:rows[0].mint,sol},ctx(user.id,chatId,key,deps));
+   const held=(await deps.app.positions(user.id,false)).map(p=>p.mint);
+   const choice=pickTrending(rows,held);
+   if(!choice){
+    return void await send(heard+'\n\nYou already hold every token I would '+
+     'have picked from. /positions shows them, and /sell closes one.');
+   }
+   await send(heard+note+'\n\nPicked '+choice.symbol+' at random out of the '+
+    rows.length+' loudest right now. Loud means paid placement, not a verdict.');
+   return runCommand({kind:'buy',mint:choice.mint,sol},ctx(user.id,chatId,key,deps));
   }
 
   // A 44-character mint cannot be dictated, so a spoken buy names a symbol
