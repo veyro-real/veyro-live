@@ -7,6 +7,7 @@
 // lives in lib/wallet, the money path lives in lib/trade/execute. Nothing
 // here re-decides any of that.
 
+import {PublicKey} from '@solana/web3.js';
 import type {
  Assessment, Candidate, Limits, Position, Strategy, StrategyMatch, TradeOutcome, User,
 } from './types';
@@ -16,10 +17,10 @@ import {
  setPaperBalance, deactivateLimits, updatePosition, upsertUser, writeLimits,
  writeStrategy,
 } from './db';
-import {balanceLamports, ensureKeypair, solToLamports} from './wallet/custody';
+import {balanceLamports, ensureKeypair, mainnet, solToLamports} from './wallet/custody';
 import {buy as tradeBuy, reconcile, sell as tradeSell} from './trade/execute';
 import {paperBuy, paperSell} from './trade/paper';
-import {quote} from './trade/jupiter';
+import {SOL_MINT,quote,routeLabels} from './trade/jupiter';
 import {dexscreener} from './market/dexscreener';
 import {compileStrategy} from './strategy/compile';
 import {matchStrategy} from './strategy/match';
@@ -166,6 +167,59 @@ export async function explain(mint:string):Promise<ScanRow|null>{
  // Known but not yet assessed is still "no measurement to explain".
  if(!row||!row.assessment)return null;
  return {candidate:row.candidate,assessment:row.assessment as Assessment,match:null};
+}
+
+/**
+ * What a buy would actually do, priced now.
+ *
+ * The confirmation is the moment a user decides, so it should name the token
+ * rather than only its mint, and say which venue the liquidity comes from.
+ * Everything here is best-effort: a preview that fails must not stop the
+ * trade being offered, so each part degrades to null on its own.
+ */
+export type BuyPreview={
+ symbol:string|null;
+ name:string|null;
+ /** The token's own decimals. Without them an amount is not a quantity. */
+ decimals:number|null;
+ /** Null when no route could be priced just now. */
+ quote:{
+  outAmount:string;
+  minOutAmount:string;
+  priceImpactPct:number;
+  slippageBps:number;
+  route:string[];
+ }|null;
+};
+
+export async function previewBuy(mint:string,sol:number):Promise<BuyPreview> {
+ const [named,priced,decimals]=await Promise.all([
+  (async()=>{
+   const known=await findCandidate(mint);
+   if(known)return {symbol:known.candidate.symbol,name:known.candidate.name};
+   // Not a launch we saw. DexScreener knows anything with a live pair.
+   const pair=await dexscreener().pair(mint).catch(()=>null);
+   return pair?{symbol:pair.candidate.symbol,name:pair.candidate.name}:null;
+  })().catch(()=>null),
+  (async()=>{
+   const q=await quote(SOL_MINT,mint,solToLamports(sol));
+   return {
+    outAmount:q.outAmount,
+    minOutAmount:q.minOutAmount,
+    priceImpactPct:q.priceImpactPct,
+    slippageBps:q.slippageBps,
+    route:routeLabels(q.routePlan),
+   };
+  })().catch(()=>null),
+  (async()=>{
+   const supply=await mainnet().getTokenSupply(new PublicKey(mint));
+   return supply.value.decimals;
+  })().catch(()=>null),
+ ]);
+ return {
+  symbol:named?.symbol??null,name:named?.name??null,
+  decimals:decimals??null,quote:priced,
+ };
 }
 
 // ---------------------------------------------------------------- trading

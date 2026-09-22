@@ -27,6 +27,24 @@ function headers():Record<string,string>{
  return h;
 }
 
+/**
+ * The venues a quote actually routes through, in order.
+ *
+ * Jupiter is an aggregator, not a venue: "bought on Jupiter" says nothing
+ * about where the liquidity came from, and a user about to spend wants the
+ * real answer. Duplicates are collapsed because a split across two pools on
+ * one AMM is still that one AMM.
+ */
+export function routeLabels(routePlan:unknown):string[]{
+ if(!Array.isArray(routePlan))return [];
+ const seen:string[]=[];
+ for(const hop of routePlan){
+  const label=(hop as {swapInfo?:{label?:unknown}})?.swapInfo?.label;
+  if(typeof label==='string'&&label&&!seen.includes(label))seen.push(label);
+ }
+ return seen;
+}
+
 export async function quote(inputMint:string,outputMint:string,amount:bigint):Promise<SwapQuote&{raw:unknown}>{
  const u=new URL(base()+'/swap/v1/quote');
  u.searchParams.set('inputMint',inputMint);

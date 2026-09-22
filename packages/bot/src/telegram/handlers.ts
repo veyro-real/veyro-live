@@ -124,7 +124,9 @@ export const handlers:Handlers={
   // of borrowing the look of one we did.
   const row=await deps.app.explain(c.mint);
   const {mode}=await deps.app.tradingMode(userId);
-  const caption=render.confirm(c.mint,c.sol,row,mode==='paper');
+  // Best effort: a preview that fails must not stop the trade being offered.
+  const preview=await deps.app.previewBuy(c.mint,c.sol).catch(()=>undefined);
+  const caption=render.confirm(c.mint,c.sol,row,mode==='paper',preview);
   const image=row?await deps.image(row.candidate.uri):null;
   // Telegram fetches the image itself, and a token's metadata often points at
   // IPFS it cannot reach — which fails the whole send. The picture is

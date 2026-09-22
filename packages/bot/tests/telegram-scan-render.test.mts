@@ -75,3 +75,38 @@ test('the confirmation tells the truth about which kind of money this is',async(
  assert.match(confirm('Hgtpj3Rg2BWWeopkAiVy71KT8L8nQWMxxxFdChq2pump',0.86,null),
   /real funds/i,'an unknown mode warns rather than reassures');
 });
+
+// "Bought on Jupiter" says nothing: Jupiter is an aggregator, not a venue.
+test('the confirmation names the token and the venue it routes through',async()=>{
+ const {confirm}=await import('../src/telegram/render');
+ const text=confirm('HzaCANKGkhNcQGb1VWL8f4tHJYrCmaXrPWk9eHR7GYYX',0.0042,null,false,{
+  symbol:'SATOSHINU',name:'SATOSHINU',decimals:6,
+  quote:{outAmount:'12345670000',minOutAmount:'11728386500',
+   priceImpactPct:0.42,slippageBps:300,route:['Raydium','Meteora']},
+ });
+ assert.match(text,/SATOSHINU/,'the token is not named');
+ assert.match(text,/Raydium/,'the venue is not shown');
+ assert.match(text,/Meteora/,'a second hop is dropped');
+ assert.match(text,/12345\.67/,'decimals were not applied to the amount');
+ assert.match(text,/11728\.3865/,'the minimum received is missing');
+ assert.match(text,/0\.42%/,'price impact is missing');
+ assert.match(text,/3\.00%/,'max slippage is missing');
+ assert.doesNotMatch(text,/12345670000/,'raw base units leaked into the copy');
+});
+
+test('an unpriceable route says so rather than inventing numbers',async()=>{
+ const {confirm}=await import('../src/telegram/render');
+ const text=confirm('HzaCANKGkhNcQGb1VWL8f4tHJYrCmaXrPWk9eHR7GYYX',0.0042,null,false,
+  {symbol:'SATOSHINU',name:'SATOSHINU',decimals:6,quote:null});
+ assert.match(text,/SATOSHINU/);
+ assert.match(text,/could not price/i);
+});
+
+test('route labels are deduped and survive a malformed plan',async()=>{
+ const {routeLabels}=await import('../src/trade/jupiter');
+ assert.deepEqual(routeLabels([
+  {swapInfo:{label:'Raydium'}},{swapInfo:{label:'Raydium'}},{swapInfo:{label:'Orca'}},
+ ]),['Raydium','Orca']);
+ assert.deepEqual(routeLabels(null),[]);
+ assert.deepEqual(routeLabels([{},{swapInfo:{}},{swapInfo:{label:42}}]),[]);
+});

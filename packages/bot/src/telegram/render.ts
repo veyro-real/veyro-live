@@ -5,7 +5,7 @@
 // user in plain language that the service holds their keys.
 
 import type {Limits,Position} from '../types';
-import type {ScanRow,TrendingRow} from '../app';
+import type {BuyPreview,ScanRow,TrendingRow} from '../app';
 import type {InlineKeyboard} from './types';
 
 /** Lamports as SOL, exact, with no trailing zeros. Never rounded for display. */
@@ -267,7 +267,42 @@ export function why(row:ScanRow|null,mint:string):string{
  * plain statement that it was not. Nothing here forecasts a price, because
  * the filter measures disqualifiers and has no opinion about what goes up.
  */
-export function confirm(mint:string,solAmount:number,row:ScanRow|null,paper=false):string{
+/** Decimals are the token's own; without them an amount is not a quantity. */
+const units=(raw:string,decimals:number|null):string=>{
+ if(decimals===null)return raw;
+ const n=BigInt(raw),d=BigInt(10)**BigInt(decimals);
+ const whole=(n/d).toString();
+ const frac=(n%d).toString().padStart(decimals,'0').replace(/0+$/,'');
+ return frac?whole+'.'+frac.slice(0,4):whole;
+};
+
+/**
+ * What the trade will actually do, when we could price it.
+ *
+ * Jupiter is an aggregator, so naming it says nothing about where the
+ * liquidity is. The venue is the answer to "who am I buying from".
+ */
+export function quoteLines(q:BuyPreview['quote'],decimals:number|null=null):string[]{
+ if(!q)return ['Could not price this route just now.'];
+ return [
+  'You get about '+units(q.outAmount,decimals)+
+   ', at least '+units(q.minOutAmount,decimals),
+  'Price impact '+q.priceImpactPct.toFixed(2)+'% · max slippage '+
+   (q.slippageBps/100).toFixed(2)+'%',
+  q.route.length?('Route: '+q.route.join(' → ')):'Route: unknown',
+ ];
+}
+
+export function confirm(
+ mint:string,solAmount:number,row:ScanRow|null,paper=false,preview?:BuyPreview,
+):string{
+ const title=(()=>{
+  const symbol=row?.candidate.symbol??preview?.symbol??null;
+  const name=row?.candidate.name??preview?.name??null;
+  if(symbol&&name&&name!==symbol)return symbol+' · '+name;
+  return symbol??name??null;
+ })();
+ const priced=preview?quoteLines(preview.quote,preview.decimals):[];
  const head='Buy '+solAmount+' SOL';
  // Defaults to the live warning: if the mode could not be read, the cautious
  // sentence is the true one. Saying "real funds" about a simulated trade is
@@ -277,14 +312,17 @@ export function confirm(mint:string,solAmount:number,row:ScanRow|null,paper=fals
   : 'Real funds, and it cannot be undone.';
  if(!row){
   return [
+   title,
    head+' of',
    mint,
    '',
+   ...priced,
+   priced.length?'':null,
    'I have no measurement for this token. It was never assessed here, so '+
    'nothing below the filter has checked it.',
    '',
    tail,
-  ].join('\n');
+  ].filter(l=>l!==null&&l!==undefined).join('\n');
  }
  const a=row.assessment,f=a.features;
  const facts=[
@@ -297,12 +335,13 @@ export function confirm(mint:string,solAmount:number,row:ScanRow|null,paper=fals
   f.freezeAuthorityRevoked===true?'freeze revoked':'freeze NOT revoked',
  ].join(' · ');
  return [
-  row.candidate.symbol+' · '+row.candidate.name,
+  title??(row.candidate.symbol+' · '+row.candidate.name),
   head,
   '',
   facts,
   authorities,
   'first seen '+f.ageSeconds+'s ago',
+  ...(priced.length?['',...priced]:[]),
   '',
   mint,
   '',
