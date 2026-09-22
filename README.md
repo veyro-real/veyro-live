@@ -1,6 +1,77 @@
 # Veyro Live
 
-The phone-friendly Veyro agent workspace. Next.js with a monochrome, Vercel-inspired interface; durable Supabase audit records; read-only crypto-X research; protocol execution and a small MCP endpoint.
+A pnpm workspace. `apps/control-plane` is the Next.js app and the Telegram
+webhook; `apps/market-worker` holds the launch-feed socket; `packages/bot` is
+every decision either of them makes. The original agent workspace — monochrome
+interface, Supabase audit records, read-only crypto-X research, protocol
+execution and a small MCP endpoint — still lives in the control plane.
+
+## Telegram bot: local run and demo
+
+```sh
+npx pnpm@10.17.1 install
+npx pnpm@10.17.1 test        # 405 tests
+npx pnpm@10.17.1 typecheck
+npx pnpm@10.17.1 build
+```
+
+Minimum to talk to the bot: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`,
+`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `VEYRO_CREDENTIALS_KEY`,
+`SOLANA_MAINNET_RPC_URL`. Put them in `apps/control-plane/.env.local`, which is
+gitignored; Next reads env from the app directory, not the repo root.
+
+Nothing reaches the bot until Telegram is told where to send updates:
+
+```sh
+curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
+  -H 'content-type: application/json' \
+  -d "{\"url\":\"$VEYRO_APP_ORIGIN/api/telegram/webhook\",
+       \"secret_token\":\"$TELEGRAM_WEBHOOK_SECRET\",
+       \"allowed_updates\":[\"message\",\"callback_query\"]}"
+```
+
+`getWebhookInfo` reports the last delivery error and is the first place to look
+when the bot goes quiet. An unauthenticated GET of the webhook route should
+answer 401, not 404: 401 means the code is deployed and correctly refusing.
+
+### Voice
+
+Set `OPENAI_API_KEY` and voice notes are transcribed by
+`gpt-4o-mini-transcribe`, which accepts Telegram's OGG/Opus as delivered and
+needs neither ffmpeg nor a local model — so it is the only path that works in
+the container. Without the key it falls back to whisper.cpp against a local
+ggml model, which exists only on a developer Mac. Without either, the bot says
+it cannot hear rather than ignoring the note. `VEYRO_VOICE_DISABLED=true`
+turns it off outright.
+
+Replies are spoken with macOS `say`, which the container does not have, so a
+deployed bot answers in text.
+
+### The demo flow
+
+Send, or say, **"Find the best Solana meme coin and buy one hundred dollars."**
+
+1. The note is transcribed and echoed back verbatim, so a misheard instruction
+   is visible before it does anything.
+2. Dollars are converted once, against Jupiter's quote for selling one SOL, and
+   the rate is shown. Limits, positions and the ledger are lamports throughout.
+3. The candidate, its mint, the quote, price impact and slippage are shown with
+   a Confirm keyboard. **Nothing trades before that tap.**
+4. Confirming consumes the pending record through `veyro_claim_request`, so a
+   second tap cannot buy twice.
+5. `/mode paper` simulates the fill at real quoted prices and records the whole
+   lifecycle. Live trading additionally requires `VEYRO_TRADING_ENABLED=true`,
+   which defaults to false and is the hard off-switch.
+
+`/fund` (or `/wallet`) shows the deposit address and balance. An unreadable
+balance is never rendered as zero. The on-ramp button is deliberately not
+prefilled with the address: the wallet is custodial, and every hosted on-ramp
+requires the buyer to be the sole owner of the destination.
+
+### Before real money
+
+Rotate `VEYRO_CREDENTIALS_KEY` **while balances are zero** — it decrypts every
+wallet secret, and changing it later orphans them permanently. See `TODO.md`.
 
 ## Supabase
 
@@ -57,12 +128,20 @@ The tool interface can be driven by an LLM client, but the included browser agen
 
 ## Develop and validate
 
+This is a pnpm workspace pinned to pnpm 10.17.1, and `npm install` will not
+resolve `workspace:*` dependencies. Without pnpm on PATH, `npx pnpm@10.17.1`
+works everywhere below.
+
 ```sh
-npm ci
-npm test
-npm run build
-npm run dev
+npx pnpm@10.17.1 install
+npx pnpm@10.17.1 test
+npx pnpm@10.17.1 typecheck
+npx pnpm@10.17.1 build
+npx pnpm@10.17.1 dev
 ```
+
+`packages/bot/tsconfig.json` currently typechecks `src` only, so a type error
+inside a test file will not fail `typecheck` — it surfaces when that test runs.
 
 `vendor/` contains versioned build output from this project's own protocol packages so Railway can build this repository without unpublished packages or GitHub credentials. Update these copies together when protocol interfaces change.
 

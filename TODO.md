@@ -8,9 +8,9 @@ pieces fit together.
 
 Nothing else matters until these are done.
 
-- [ ] **Switch the Railway service branch to `feat/telegram-trading-bot`.**
-      The deploy is still `main`, which has no bot in it and 404s on
-      `/api/telegram/webhook`.
+- [x] ~~Switch the Railway service branch to `feat/telegram-trading-bot`.~~
+      No longer applies: the bot is on `main`, and the workspace moved to
+      `apps/*` and `packages/*`. Railway stays on `main`.
 - [ ] **Confirm `veyro.wtf` loads, then that the webhook route returns 401 and
       not 404.** 401 means the code is live and correctly rejecting an
       unauthenticated request. DNS is already correct: Cloudflare flattens the
@@ -88,9 +88,13 @@ Nothing else matters until these are done.
 
 ## Known and deliberate
 
-- **Voice is Mac-only.** Synthesis is macOS `say`, transcription is whisper.cpp
-  against a local model. Neither exists in the Linux container. `available()`
-  reports this honestly and the bot degrades to text rather than failing.
+- **Synthesis is Mac-only; transcription is not, any more.** `say` still does
+  not exist in the Linux container, so the bot replies in text there.
+  Transcription has a hosted path: set `OPENAI_API_KEY` and voice notes are
+  transcribed by `gpt-4o-mini-transcribe`, which takes Telegram's OGG/Opus as
+  delivered and needs neither ffmpeg nor a model file. Without the key it
+  falls back to whisper.cpp, and without that it says it cannot hear rather
+  than ignoring the note.
 - **`lib/chain/policy.ts` hardcodes byte offsets** from `veyro-protocol`. The
   layout is documented in that repo's `docs/MAINNET_WIRE_FORMAT.md`, but nothing
   mechanically couples them: change an offset there and this client keeps
