@@ -18,7 +18,7 @@ import {
  writeStrategy,
 } from './db';
 import {balanceLamports, ensureKeypair, mainnet, solToLamports, spendableLamports} from './wallet/custody';
-import {buy as tradeBuy, reconcile, sell as tradeSell} from './trade/execute';
+import {buy as tradeBuy, hardMaxLamports, reconcile, sell as tradeSell} from './trade/execute';
 import {paperBuy, paperSell} from './trade/paper';
 import {defaultLimits} from './trade/default-limits';
 import {SOL_MINT,quote,routeLabels} from './trade/jupiter';
@@ -284,6 +284,50 @@ export async function buy(
  const user=await findUser(userId);
  if(user?.mode!=='live')return paperBuy(userId,mint,lamports,symbol,paperDeps());
  return tradeBuy(userId,mint,lamports,symbol,key);
+}
+
+/** The operator ceiling, in SOL. Nothing a user does can raise past this. */
+export function hardCapSol():number{
+ return Number(hardMaxLamports())/1e9;
+}
+
+/**
+ * Whether a trade fits under the operator ceiling.
+ *
+ * A per-trade or daily limit the user set can be widened to let a trade
+ * through; the hard cap cannot. So a refusal is only worth offering to fix
+ * when the trade is within the cap — above it, raising a limit changes
+ * nothing and the refusal stands.
+ */
+export function withinHardCap(sol:number):boolean{
+ return solToLamports(sol)<=hardMaxLamports();
+}
+
+/**
+ * Raises the caller's own limits just enough to admit one trade, then buys.
+ *
+ * Only ever widens to the operator hard cap, never past it, so a stale or
+ * over-tight self-imposed limit stops being a dead end without removing the
+ * ceiling that actually bounds risk. Refuses outright above the cap rather
+ * than raising to a number the cap forbids.
+ */
+export async function raiseLimitAndBuy(
+ userId:string,mint:string,sol:number,key:RequestKey,
+):Promise<TradeOutcome>{
+ if(!withinHardCap(sol)){
+  return buy(userId,mint,sol,key); // buy() returns the ABOVE_HARD_CAP refusal.
+ }
+ const cap=hardCapSol();
+ const current=await readLimits(userId);
+ const day=current?Number(current.dailyCapLamports)/1e9:0;
+ await setLimits(userId,{
+  maxTradeSol:cap,
+  // The daily cap moves up only if it was below the new per-trade size; a
+  // per-trade larger than the day's total is a limit that contradicts itself.
+  dailyCapSol:Math.max(day,cap),
+  hours:24,
+ });
+ return buy(userId,mint,sol,key);
 }
 
 export async function sell(userId:string,positionId:string,key:RequestKey):Promise<TradeOutcome>{

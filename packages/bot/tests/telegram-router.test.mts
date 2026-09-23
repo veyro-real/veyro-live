@@ -36,6 +36,9 @@ function harness(app:Partial<Deps['app']>={}){
     quote:{outAmount:'12345670000',minOutAmount:'11728386500',
      priceImpactPct:0.42,slippageBps:300,route:['Raydium','Meteora']}}),
    buy:async()=>({position:POSITION as any,result:{ok:true,signature:'sig-1',outAmount:'1000'}}),
+   raiseLimitAndBuy:spy('raiseLimitAndBuy',async()=>({position:POSITION as any,result:{ok:true,signature:'sig-raised',outAmount:'1000'}})),
+   withinHardCap:async(sol:number)=>sol<=0.01,
+   hardCapSol:()=>0.01,
    sell:async()=>({position:POSITION as any,result:{ok:true,signature:'sig-2',outAmount:'9'}}),
    positions:async()=>[],
    reconcilePositions:async()=>[],
@@ -725,4 +728,46 @@ test('an interpreted buy still requires a tap, and cannot spend on its own',asyn
  await route(voiceNote2(8005),h.deps);
  assert.equal(traded,false,'an interpreted buy spent without confirmation');
  assert.ok(h.last().keyboard,'no keyboard, so nothing to confirm');
+});
+
+// A self-imposed limit is not a dead end when the trade fits under the
+// operator cap: one tap widens the user's own ceiling and completes it.
+const OVER_LIMIT={position:{...POSITION,status:'FAILED',symbol:'WIF'} as any,
+ result:{ok:false,reason:'MAX_TRADE_EXCEEDED',signature:null}};
+
+test('a trade over your own limit but under the cap offers a one-tap raise',async()=>{
+ const h=harness({buy:async()=>OVER_LIMIT as any});
+ await route(message('/buy '+MINT+' 0.008'),h.deps);
+ const confirm=h.last().keyboard!.flat().find(b=>/confirm/i.test(b.text))!;
+ await route(callback(confirm.callback_data,9001),h.deps);
+ const out=h.last();
+ assert.match(out.text,/within the 0\.01 SOL cap/i,'the cap headroom is not explained');
+ assert.ok(out.keyboard?.flat().some(b=>/raise limit/i.test(b.text)),'no raise button');
+});
+
+test('tapping raise widens the limit and completes the same trade, once',async()=>{
+ let raised=0;
+ const h=harness({
+  buy:async()=>OVER_LIMIT as any,
+  raiseLimitAndBuy:async()=>{raised++;return {position:POSITION as any,result:{ok:true,signature:'sig-raised',outAmount:'1'}};},
+ });
+ await route(message('/buy '+MINT+' 0.008'),h.deps);
+ const confirm=h.last().keyboard!.flat().find(b=>/confirm/i.test(b.text))!;
+ await route(callback(confirm.callback_data,9002),h.deps);
+ const raise=h.last().keyboard!.flat().find(b=>/raise limit/i.test(b.text))!;
+ await route(callback(raise.callback_data,9003),h.deps);
+ assert.match(h.last().text,/sig-raised/,'the trade did not complete after raising');
+ await route(callback(raise.callback_data,9004),h.deps);
+ assert.equal(raised,1,'a replayed raise ran the trade twice');
+});
+
+test('a trade over the hard cap is not offered a raise, because none would help',async()=>{
+ const h=harness({buy:async()=>({position:{...POSITION,status:'FAILED'} as any,
+  result:{ok:false,reason:'ABOVE_HARD_CAP',signature:null}})});
+ // withinHardCap is false above 0.01 in the harness
+ await route(message('/buy '+MINT+' 0.02'),h.deps);
+ const confirm=h.last().keyboard!.flat().find(b=>/confirm/i.test(b.text))!;
+ await route(callback(confirm.callback_data,9005),h.deps);
+ assert.match(h.last().text,/hard cap/i);
+ assert.equal(h.last().keyboard,undefined,'a raise cannot lift the hard cap, so none is offered');
 });

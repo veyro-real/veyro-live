@@ -37,7 +37,7 @@ const tradingEnabled=()=>process.env.VEYRO_TRADING_ENABLED==='true';
  */
 const DEFAULT_HARD_MAX_LAMPORTS=6_000_000n; // ~0.006 SOL
 
-function hardMaxLamports():bigint{
+export function hardMaxLamports():bigint{
  const raw=process.env.VEYRO_HARD_MAX_TRADE_LAMPORTS;
  if(!raw)return DEFAULT_HARD_MAX_LAMPORTS;
  try{

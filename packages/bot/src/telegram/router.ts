@@ -17,7 +17,7 @@ import {intentFromSpeech,refusalFor,type Intent} from './intent';
 import type * as app from '../app';
 import * as render from './render';
 import {WHY} from './render';
-import {ACTION,ACTION_NO,CANCEL,CONFIRM,FUNDED,report,runCommand,type Ctx} from './handlers';
+import {ACTION,ACTION_NO,CANCEL,CONFIRM,FUNDED,RAISE,report,runCommand,type Ctx} from './handlers';
 import {stepAction,stepMessage,TUTORIAL,TUTORIAL_DO} from './tutorial';
 import {onrampLink} from '../fund/moonpay';
 import {pickTrending,TRENDING_POOL} from '../trade/pick-trending';
@@ -175,6 +175,14 @@ async function onCallback(update:TelegramUpdate,deps:Deps):Promise<void>{
   return void await settleBuy(held,update,deps,send);
  }
 
+ // "Raise limit & buy": widen the user's own ceiling to the hard cap and
+ // finish the trade. Consumed on use, so a replayed tap cannot raise twice.
+ if(q.data.startsWith(RAISE)){
+  const held=await deps.pending.take(id);
+  if(!held)return void await send('That trade is no longer held. Say it again.');
+  return void await settleBuy(held,update,deps,send,true);
+ }
+
  if(!q.data.startsWith(CONFIRM))return;
 
  // Consuming the record here is what makes a replayed tap safe. The
@@ -197,9 +205,29 @@ const SUGGESTED_TOPUP_USD=20;
 
 async function settleBuy(
  p:PendingBuy,update:TelegramUpdate,deps:Deps,send:(t:string,k?:InlineKeyboard)=>Promise<void>,
+ raiseLimit=false,
 ):Promise<void>{
- const outcome=await deps.app.buy(p.userId,p.mint,p.sol,String(update.update_id));
- if(outcome.result.ok||outcome.result.reason!=='INSUFFICIENT_BALANCE'){
+ const outcome=raiseLimit
+  ? await deps.app.raiseLimitAndBuy(p.userId,p.mint,p.sol,String(update.update_id))
+  : await deps.app.buy(p.userId,p.mint,p.sol,String(update.update_id));
+
+ // A self-imposed limit is not a dead end when the trade still fits under the
+ // operator cap: the user can widen their own ceiling with one tap. Above the
+ // cap there is nothing to offer, so it reports as the plain refusal.
+ const reason=outcome.result.ok?null:outcome.result.reason;
+ if(!raiseLimit
+    &&(reason==='MAX_TRADE_EXCEEDED'||reason==='DAILY_CAP_EXCEEDED')
+    &&await deps.app.withinHardCap(p.sol)){
+  const again=randomBytes(6).toString('hex');
+  await deps.pending.put(again,p);
+  return void await send(
+   render.denial(reason)+'\n\nThis trade is still within the '+deps.app.hardCapSol().toFixed(2)+
+   ' SOL cap set for this bot. Raise your own limit to allow it?',
+   [[{text:'Raise limit & buy',callback_data:RAISE+again},
+     {text:'Cancel',callback_data:CANCEL+again}]]);
+ }
+
+ if(reason!=='INSUFFICIENT_BALANCE'){
   return void await send(report(outcome,'Bought'));
  }
 

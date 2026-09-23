@@ -17,6 +17,8 @@ import {onrampLink} from '../fund/moonpay';
 export const CONFIRM='b:',CANCEL='x:',ACTION='a:',ACTION_NO='n:';
 /** "I have funded it" on a buy that stopped for want of SOL. */
 export const FUNDED='f:';
+/** "Raise limit & buy" on a trade within the hard cap but over the user's own. */
+export const RAISE='r:';
 
 export type Ctx={
  userId:string;
