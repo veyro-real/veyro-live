@@ -32,3 +32,21 @@ test('nothing matches when the name is unrelated or empty',()=>{
  assert.equal(matchSymbol('',H).kind,'none');
  assert.equal(matchSymbol('inu',[]).kind,'none');
 });
+
+// Whisper wraps the name in a sentence. A distinctive word inside it resolves.
+test('a word inside a garbled sentence finds the one held token',()=>{
+ const H2=[{id:'a',symbol:'STONKCAT',mint:'m1'},{id:'b',symbol:'SATOSHINU',mint:'m2'}];
+ assert.deepEqual(matchSymbol('a cat with problem',H2),{kind:'one',holding:H2[0]});
+ assert.deepEqual(matchSymbol('sell me the inu one',H2),{kind:'one',holding:H2[1]});
+});
+
+test('a word that lands in two held symbols stays ambiguous',()=>{
+ const two=[{id:'a',symbol:'CATDOG',mint:'m1'},{id:'b',symbol:'STONKCAT',mint:'m2'}];
+ assert.equal(matchSymbol('the cat thing',two).kind,'many');
+});
+
+test('short filler words never match on their own',()=>{
+ const H2=[{id:'a',symbol:'ABC',mint:'m1'}];
+ // "of","to","my" are 2 chars and skipped; nothing distinctive remains.
+ assert.equal(matchSymbol('sell of to my',H2).kind,'none');
+});

@@ -45,5 +45,14 @@ export function matchSymbol(spoken:string,holdings:Holding[]):Match{
  if(partial.length===1)return {kind:'one',holding:partial[0]};
  if(partial.length>1)return {kind:'many',holdings:partial};
 
+ // Whisper wraps the name in a sentence — "a cat with problem" for STONKCAT.
+ // Try each spoken word on its own: a word of three or more characters that
+ // lands inside exactly one held symbol is that token. Two-letter words are
+ // too small to be distinctive and are skipped.
+ const words=spoken.toLowerCase().match(/[a-z0-9]{3,}/g)??[];
+ const byWord=holdings.filter(h=>words.some(w=>key(h.symbol).includes(w)));
+ if(byWord.length===1)return {kind:'one',holding:byWord[0]};
+ if(byWord.length>1)return {kind:'many',holdings:byWord};
+
  return {kind:'none'};
 }
