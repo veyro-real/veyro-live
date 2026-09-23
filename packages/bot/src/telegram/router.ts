@@ -242,14 +242,20 @@ async function onVoice(update:TelegramUpdate,deps:Deps):Promise<void>{
  await deps.pendingAction.clear(user.id);
 
  const heard='I heard: "'+transcript+'"';
- const intent=intentFromSpeech(transcript);
+ let intent=intentFromSpeech(transcript);
+
+ // A deliberate refusal is a safety decision — a spoken sell, an amount that
+ // could not be read — and the model does not get to overrule it. Only a
+ // genuine "did not understand" is handed to the interpreter, so accents and
+ // phrasings the exact parser misses still reach a buy, and nothing else does.
  if(!intent){
-  // Understood and declined is not the same as not understood, and saying
-  // the second when the first is true leaves someone retrying a phrasing
-  // that was never going to work.
   const why=refusalFor(transcript);
-  return void await send(heard+'\n\n'+
-   (why??'I did not understand it. /help lists what I answer.'));
+  if(why)return void await send(heard+'\n\n'+why);
+  const guessed=await deps.interpretBuy(transcript);
+  if(guessed)intent=guessed as Intent;
+ }
+ if(!intent){
+  return void await send(heard+'\n\nI did not understand it. /help lists what I answer.');
  }
 
  if(readOnly(intent)){

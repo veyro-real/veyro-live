@@ -56,6 +56,12 @@ export type Deps={
  /** A spoken dollar amount as SOL at a live rate, or null when no rate can
   *  be read. Null is a refusal: a trade is never sized off a guessed rate. */
  usdToSol(usd:number):Promise<number|null>;
+ /** A spoken buy the exact parser missed, understood by a model, or null.
+  *  Only ever a buy, only with an amount that was said, and still confirmed. */
+ interpretBuy(transcript:string):Promise<
+  {kind:'buyTrending';usd:number}|{kind:'buyTrending';sol:number}
+  |{kind:'buyBySymbol';symbol:string;usd:number}|{kind:'buyBySymbol';symbol:string;sol:number}
+  |null>;
  voice:{
   enabled(userId:string):Promise<boolean>;
   setEnabled(userId:string,on:boolean):Promise<void>;

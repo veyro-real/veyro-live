@@ -10,6 +10,7 @@ import {resolveImage} from '@veyro/bot/market/metadata';
 import {setVoiceEnabled,voiceEnabled} from '@veyro/bot/voice/prefs';
 import {speaker} from '@veyro/bot/voice/tts';
 import {transcriber} from '@veyro/bot/voice/transcribe';
+import {interpreter} from '@veyro/bot/voice/interpret';
 import {actionStore} from '@veyro/bot/voice/actions';
 import {telegramApi,telegramFiles} from '@veyro/bot/telegram/api';
 import {quote} from '@veyro/bot/trade/jupiter';
@@ -34,6 +35,7 @@ export async function POST(req:Request):Promise<Response>{
    app,out,pending,
    image:uri=>resolveImage(uri),
    usdToSol:usd=>usdToSolOrNull(usd,{quote}),
+   interpretBuy:transcript=>interpreter().interpret(transcript),
    voice:{
     enabled:voiceEnabled,setEnabled:setVoiceEnabled,
     say:text=>tts.synthesize(text),

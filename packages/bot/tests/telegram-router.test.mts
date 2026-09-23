@@ -17,6 +17,7 @@ function harness(app:Partial<Deps['app']>={}){
  const voices:Buffer[]=[];let voiceOn=false;
  const actionStore=new Map<string,unknown>();let heard:string|null=null;
  let solPrice:number|null=200;
+ let interpretResult:any=null;
  const store=new Map<string,unknown>();
  const calls:Record<string,unknown[]>={};
  const spy=<T extends(...a:any[])=>any>(name:string,fn:T)=>((...a:any[])=>{(calls[name]??=[]).push(a);return fn(...a);}) as T;
@@ -52,6 +53,7 @@ function harness(app:Partial<Deps['app']>={}){
   },
   image:async uri=>uri?('https://cdn.example/'+uri+'.png'):null,
   usdToSol:spy('usdToSol',async(usd:number)=>solPrice===null?null:usd/solPrice),
+  interpretBuy:spy('interpretBuy',async(_t:string)=>interpretResult),
   voice:{
    enabled:async()=>voiceOn,
    setEnabled:async(_u,on)=>{voiceOn=on;},
@@ -71,6 +73,7 @@ function harness(app:Partial<Deps['app']>={}){
   return {deps,sent,answered,photos,voices,calls,
          setHeard:(t:string|null)=>{heard=t;},
          setSolPrice:(p:number|null)=>{solPrice=p;},
+         setInterpret:(r:any)=>{interpretResult=r;},
          actionStore,last:()=>sent[sent.length-1],
          lastPhoto:()=>photos[photos.length-1]};
 }
@@ -671,4 +674,55 @@ test('a configured onramp prefills the address, and signs it',async()=>{
   if(before.p===undefined)delete process.env.MOONPAY_PUBLISHABLE_KEY;else process.env.MOONPAY_PUBLISHABLE_KEY=before.p;
   if(before.s===undefined)delete process.env.MOONPAY_SECRET_KEY;else process.env.MOONPAY_SECRET_KEY=before.s;
  }
+});
+
+// Accents and phrasings the exact parser misses reach a buy through the
+// interpreter, and still land on the confirmation keyboard — never a spend.
+const voiceNote2=(update_id=8000)=>({update_id,message:{message_id:9,chat:{id:99},from:{id:99,username:'jeremy'},voice:{file_id:'v',duration:3}}});
+
+test('a phrasing the exact parser misses is understood by the interpreter',async()=>{
+ const h=harness();h.setSolPrice(120);
+ h.setHeard('spent one dollar on the dumbest meme coin');   // past tense
+ h.setInterpret({kind:'buyTrending',usd:1});
+ await route(voiceNote2(8001),h.deps);
+ const text=h.sent.map(s=>s.text).join('\n');
+ assert.match(text,/\$1/,'the interpreted amount is not shown');
+ assert.ok(h.last().keyboard?.flat().some(b=>/confirm/i.test(b.text)),
+  'the interpreted buy did not reach a confirmation');
+});
+
+test('the interpreter is only consulted when the exact parser returns null',async()=>{
+ const h=harness();h.setSolPrice(120);
+ h.setHeard('buy 0.05 sol of the dumbest memecoin');  // the exact parser handles this
+ h.setInterpret({kind:'buyTrending',usd:999});
+ await route(voiceNote2(8002),h.deps);
+ assert.equal(h.calls.interpretBuy,undefined,'the model was called when it was not needed');
+});
+
+test('a deliberate refusal is never handed to the interpreter',async()=>{
+ const h=harness();
+ h.setHeard('sell everything i have');       // a safety refusal
+ h.setInterpret({kind:'buyTrending',usd:5}); // the model must not override it
+ await route(voiceNote2(8003),h.deps);
+ assert.equal(h.calls.interpretBuy,undefined,'the model was allowed to overrule a safety refusal');
+ assert.match(h.last().text,/do not sell out loud/i);
+});
+
+test('the interpreter returning nothing falls back to the normal refusal',async()=>{
+ const h=harness();
+ h.setHeard('what do you think about the market');
+ h.setInterpret(null);
+ await route(voiceNote2(8004),h.deps);
+ assert.match(h.last().text,/did not understand/i);
+});
+
+test('an interpreted buy still requires a tap, and cannot spend on its own',async()=>{
+ let traded=false;
+ const h=harness({buy:async()=>{traded=true;return {position:POSITION as any,result:{ok:true,signature:'s',outAmount:'1'}};}});
+ h.setSolPrice(120);
+ h.setHeard('yo throw a dollar at whatever meme coin is popping off');
+ h.setInterpret({kind:'buyTrending',usd:1});
+ await route(voiceNote2(8005),h.deps);
+ assert.equal(traded,false,'an interpreted buy spent without confirmation');
+ assert.ok(h.last().keyboard,'no keyboard, so nothing to confirm');
 });

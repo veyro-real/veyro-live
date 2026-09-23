@@ -121,7 +121,7 @@ function solFrom(t:string):number|null{
  * purpose: this branch refuses rather than falling through, so "grab my
  * positions" would return a refusal instead of the positions it asked for.
  */
-const BUY_VERB=/\b(buy|buys|buying|spend|spends|spending|purchase|purchases|ape|apes|aping)\b/;
+const BUY_VERB=/\b(buy|buys|buying|bought|spend|spends|spending|spent|purchase|purchases|purchased|purchasing|ape|apes|aping|aped)\b/;
 
 /** "the dumbest memecoin", "the best solana meme coin": a pick, not a symbol. */
 const TRENDING=/dumbest|trending|whatever is hot|top meme|best(?:\s+\w+){0,2}\s+meme/;
