@@ -17,9 +17,10 @@ import {intentFromSpeech,refusalFor,type Intent} from './intent';
 import type * as app from '../app';
 import * as render from './render';
 import {WHY} from './render';
-import {ACTION,ACTION_NO,CANCEL,CONFIRM,FUNDED,RAISE,report,runCommand,type Ctx} from './handlers';
+import {ACTION,ACTION_NO,CANCEL,CONFIRM,FUNDED,RAISE,SELL,report,runCommand,type Ctx} from './handlers';
 import {stepAction,stepMessage,TUTORIAL,TUTORIAL_DO} from './tutorial';
 import {onrampLink} from '../fund/moonpay';
+import {matchSymbol} from '../trade/match-symbol';
 import {pickTrending,TRENDING_POOL} from '../trade/pick-trending';
 
 /** The part of lib/app the Telegram channel is allowed to call. */
@@ -183,6 +184,15 @@ async function onCallback(update:TelegramUpdate,deps:Deps):Promise<void>{
   return void await settleBuy(held,update,deps,send,true);
  }
 
+ // "Confirm sell": the position id rides in the callback data, so no pending
+ // record is needed. Selling is idempotent on the update_id and guarded by
+ // the position's own status, so a replayed tap cannot sell twice.
+ if(q.data.startsWith(SELL)){
+  const user=await deps.app.ensureUser(chatId,q.from.username??null);
+  const outcome=await deps.app.sell(user.id,id,String(update.update_id));
+  return void await send(report(outcome,'Sold'));
+ }
+
  if(!q.data.startsWith(CONFIRM))return;
 
  // Consuming the record here is what makes a replayed tap safe. The
@@ -200,6 +210,43 @@ async function onCallback(update:TelegramUpdate,deps:Deps):Promise<void>{
  * authorise it, so the trade is held and they are given the address, the
  * amount and a way to pay. Every other refusal is reported as it is.
  */
+/**
+ * Turns a spoken token name into a sell confirmation for one held position.
+ *
+ * Deterministic match first, over the user's own open positions; the model is
+ * asked only when that is not decisive, and only to choose among symbols the
+ * user holds. No single clear answer lists what they hold and asks again —
+ * closing the wrong position is the one outcome this must never produce.
+ */
+async function resolveSpokenSell(
+ name:string,userId:string,chatId:string,heard:string,deps:Deps,
+ send:(t:string,k?:InlineKeyboard)=>Promise<void>,
+):Promise<void>{
+ const open=(await deps.app.positions(userId,false)).filter(p=>p.status==='OPEN');
+ if(open.length===0){
+  return void await send(heard+'\n\nYou have no open positions to sell.');
+ }
+
+ const holdings=open.map(p=>({id:p.id,symbol:p.symbol,mint:p.mint}));
+ let match=matchSymbol(name,holdings);
+
+ // Not decisive on text alone: ask the model to choose among held symbols.
+ if(match.kind!=='one'){
+  const picked=await deps.interpretSell(name,holdings.map(h=>h.symbol));
+  const hit=picked?holdings.filter(h=>h.symbol===picked):[];
+  if(hit.length===1)match={kind:'one',holding:hit[0]};
+ }
+
+ if(match.kind!=='one'){
+  return void await send(heard+'\n\n'+render.sellNoMatch(name,open));
+ }
+ const position=open.find(p=>p.id===match.holding.id)!;
+ await send(heard);
+ return void await send(render.confirmSell(position),
+  [[{text:'Confirm sell',callback_data:SELL+position.id},
+    {text:'Cancel',callback_data:CANCEL+'sell'}]]);
+}
+
 /** Enough for a run of small trades, so funding is not a per-trade chore. */
 const SUGGESTED_TOPUP_USD=20;
 
@@ -289,6 +336,13 @@ async function onVoice(update:TelegramUpdate,deps:Deps):Promise<void>{
  if(readOnly(intent)){
   await send(heard);
   return runCommand(intent as Command,ctx(user.id,chatId,key,deps));
+ }
+
+ // A spoken sell names a token; which held position it means is resolved here
+ // against what the user actually holds, so a misheard name matches nothing
+ // rather than closing the wrong thing. Every match still needs a tap.
+ if(intent.kind==='sellBySpokenName'){
+  return void await resolveSpokenSell(intent.name,user.id,chatId,heard,deps,send);
  }
 
  if(intent.kind==='buyTrending'||intent.kind==='buyBySymbol'){

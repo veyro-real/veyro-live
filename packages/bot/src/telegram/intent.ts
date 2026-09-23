@@ -16,12 +16,19 @@ export type Intent=Command
  |{kind:'buyBySymbol';symbol:string;sol:number}
  |{kind:'buyBySymbol';symbol:string;usd:number}
  |{kind:'buyTrending';sol:number}
- |{kind:'buyTrending';usd:number};
+ |{kind:'buyTrending';usd:number}
+ // A spoken sell names a token, not a uuid. Which held position it means is
+ // resolved in the router against what the user actually holds, so a misheard
+ // name matches nothing rather than closing the wrong thing.
+ |{kind:'sellBySpokenName';name:string};
 
 /** Whisper reliably hears SOL as "sold", "soul" or "sole". */
 const normalise=(raw:string):string=>raw
  .toLowerCase()
  .replace(/\bslash\s+/g,'/')
+ // "sell" is heard as "cell", "sale" and "sail"; normalise only at the start
+ // of the utterance, where it is the verb, not inside a token name.
+ .replace(/^(cell|sale|sail)\b/,'sell')
  .replace(/\b(sold|soul|sole|salt)\b/g,'sol')
  .replace(/[,!?]/g,' ')
  .replace(/\s+/g,' ')
@@ -141,9 +148,10 @@ export function refusalFor(raw:string):string|null{
  if(intentFromSpeech(raw))return null;
 
  if(/\bsell\b/.test(t)){
-  return 'I do not sell out loud. A position id is a uuid and mishearing one '+
-   'character would close the wrong thing, so /positions shows what you hold '+
-   'and /sell <id> closes one.';
+  // A named sell is handled now; only a nameless "sell everything" reaches
+  // here, and that is refused because it does not say which position.
+  return 'Say which one to sell — "sell INU", or the token\'s name. '+
+   '/positions shows what you hold, and /sell <id> closes one exactly.';
  }
 
  if(BUY_VERB.test(t)){
@@ -230,8 +238,19 @@ export function intentFromSpeech(raw:string):Intent|null{
   return {kind:'buyBySymbol',symbol:m[2],sol};
  }
 
- // A position id cannot be spoken, so this is always a refusal.
- if(/\bsell\b/.test(t))return null;
+ // A spoken sell names a token, not a uuid. "sell everything" and a bare
+ // "sell" have no name to resolve, so they stay refusals; a name after sell
+ // is handed to the router, which matches it against what the user holds.
+ if(/\bsell\b/.test(t)){
+  if(/sell (all|everything|it all|my bags|the lot|my position|my positions)\b/.test(t))return null;
+  const m=t.match(/\bsell\s+(?:all (?:my|of my)\s+|my\s+|the\s+)?([a-z0-9][a-z0-9 ]{0,30}?)\s*(?:token|coin|position|bag)?$/);
+  const name=m?.[1]?.trim();
+  // A name that is only a generic word points at no token. Refuse it rather
+  // than resolving "position" or "everything" against a held symbol.
+  const generic=new Set(['all','everything','it','position','positions','bag','bags','token','coin','one','thing']);
+  if(name&&!generic.has(name))return {kind:'sellBySpokenName',name};
+  return null;
+ }
 
  if(/\bwallet\b|deposit address|my address|add funds|fund my|top up/.test(t))return {kind:'wallet'};
  if(/\bpositions?\b|what am i holding|what do i hold|my bags/.test(t))return {kind:'positions',includeClosed:false};

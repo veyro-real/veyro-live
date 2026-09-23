@@ -272,6 +272,38 @@ export function positions(list:Position[]):string{
 /** Callback prefix for the per-candidate explain button. */
 export const WHY='y:';
 
+/**
+ * The confirmation for a sell resolved from a spoken name.
+ *
+ * Names the exact position so a wrong match is caught by eye before the tap,
+ * not after. A sell returns funds and needs no spend reservation, so the only
+ * guard that matters is that the human sees which token is about to close.
+ */
+export function confirmSell(p:Position):string{
+ return [
+  'Sell '+p.symbol+'?',
+  '',
+  (p.tokensReceived?p.tokensReceived+' tokens':'this position')+
+   ', bought for '+sol(p.entryLamports)+' SOL',
+  'Position '+p.id,
+  '',
+  'Real funds, back to SOL. This cannot be undone.',
+ ].join('\n');
+}
+
+/** When a spoken name matched nothing, or matched several. */
+export function sellNoMatch(spoken:string,holdings:Position[]):string{
+ if(holdings.length===0)return 'You have no open positions to sell.';
+ const held=holdings.map(p=>'  '+p.symbol+' — '+p.id).join('\n');
+ return [
+  'I heard "sell '+spoken+'" but could not tell which of these you meant:',
+  '',
+  held,
+  '',
+  'Say the name again, or paste it — or use /sell <id> with one of the ids above.',
+ ].join('\n');
+}
+
 /** Most buttons one message carries before the keyboard stops being usable. */
 const MAX_BUTTONS=8;
 

@@ -72,9 +72,33 @@ export function toSpokenBuy(raw:Raw):SpokenBuy|null{
  return unit==='usd'?{kind:'buyTrending',usd:amount}:{kind:'buyTrending',sol:amount};
 }
 
-export type Interpreter={interpret(transcript:string):Promise<SpokenBuy|null>};
+/**
+ * Which held token a spoken name refers to, when plain matching could not
+ * tell. The model is given the exact list the user holds and must return one
+ * of those symbols or nothing — it cannot invent a token, only choose among
+ * the ones already owned, so the worst case is "ask again", never a wrong
+ * position closed.
+ */
+const RESOLVE_SYSTEM=`A user asked to sell a crypto token by saying its name
+aloud, and speech-to-text may have garbled it. You are given the exact list of
+token symbols they currently hold. Decide which one they meant.
 
-const NULL:Interpreter={interpret:async()=>null};
+Return ONLY compact JSON: {"symbol": string|null}
+- "symbol" MUST be exactly one of the held symbols provided, copied verbatim,
+  or null.
+- Match by sound and meaning: "inu" or "e-nu" for SATOSHINU, "the cat" for a
+  cat-themed token, "doge" for DOGE. Homophones and dropped syllables are
+  expected.
+- If two held tokens fit equally, or none clearly fits, return null. A wrong
+  pick closes the wrong position; null just asks the user to repeat.`;
+
+export type Interpreter={
+ interpret(transcript:string):Promise<SpokenBuy|null>;
+ /** One of `held`, or null when no single symbol clearly fits. */
+ resolveSymbol(spokenName:string,held:string[]):Promise<string|null>;
+};
+
+const NULL:Interpreter={interpret:async()=>null,resolveSymbol:async()=>null};
 
 export function openaiInterpreter(opts:{apiKey?:string;model?:string;baseUrl?:string}={}):Interpreter{
  const apiKey=opts.apiKey??process.env.OPENAI_API_KEY??'';
@@ -107,6 +131,35 @@ export function openaiInterpreter(opts:{apiKey?:string;model?:string;baseUrl?:st
     return toSpokenBuy(JSON.parse(content) as Raw);
    }catch{
     return null; // Unreachable or unparseable. The caller refuses normally.
+   }
+  },
+
+  async resolveSymbol(spokenName,held){
+   const name=spokenName.trim();
+   if(!apiKey||!name||held.length===0)return null;
+   try{
+    const res=await fetch(baseUrl+'/chat/completions',{
+     method:'POST',
+     headers:{'content-type':'application/json',Authorization:'Bearer '+apiKey},
+     signal:AbortSignal.timeout(12_000),
+     body:JSON.stringify({
+      model,temperature:0,response_format:{type:'json_object'},
+      messages:[
+       {role:'system',content:RESOLVE_SYSTEM},
+       {role:'user',content:'Held: '+held.join(', ')+'\nThey said: '+name},
+      ],
+     }),
+    });
+    if(!res.ok)return null;
+    const body=await res.json() as {choices?:{message?:{content?:string}}[]};
+    const content=body.choices?.[0]?.message?.content;
+    if(!content)return null;
+    const picked=(JSON.parse(content) as {symbol?:unknown}).symbol;
+    // The model must return one of the held symbols verbatim. Anything else
+    // is discarded rather than trusted — it cannot name a token not held.
+    return typeof picked==='string'&&held.includes(picked)?picked:null;
+   }catch{
+    return null;
    }
   },
  };

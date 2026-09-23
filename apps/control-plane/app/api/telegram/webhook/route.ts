@@ -36,6 +36,7 @@ export async function POST(req:Request):Promise<Response>{
    image:uri=>resolveImage(uri),
    usdToSol:usd=>usdToSolOrNull(usd,{quote}),
    interpretBuy:transcript=>interpreter().interpret(transcript),
+   interpretSell:(name,held)=>interpreter().resolveSymbol(name,held),
    voice:{
     enabled:voiceEnabled,setEnabled:setVoiceEnabled,
     say:text=>tts.synthesize(text),

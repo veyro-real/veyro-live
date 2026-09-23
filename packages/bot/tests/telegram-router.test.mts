@@ -18,6 +18,7 @@ function harness(app:Partial<Deps['app']>={}){
  const actionStore=new Map<string,unknown>();let heard:string|null=null;
  let solPrice:number|null=200;
  let interpretResult:any=null;
+ let interpretSellResult:string|null=null;
  const store=new Map<string,unknown>();
  const calls:Record<string,unknown[]>={};
  const spy=<T extends(...a:any[])=>any>(name:string,fn:T)=>((...a:any[])=>{(calls[name]??=[]).push(a);return fn(...a);}) as T;
@@ -57,6 +58,7 @@ function harness(app:Partial<Deps['app']>={}){
   image:async uri=>uri?('https://cdn.example/'+uri+'.png'):null,
   usdToSol:spy('usdToSol',async(usd:number)=>solPrice===null?null:usd/solPrice),
   interpretBuy:spy('interpretBuy',async(_t:string)=>interpretResult),
+  interpretSell:spy('interpretSell',async(_n:string,_h:string[])=>interpretSellResult),
   voice:{
    enabled:async()=>voiceOn,
    setEnabled:async(_u,on)=>{voiceOn=on;},
@@ -77,6 +79,7 @@ function harness(app:Partial<Deps['app']>={}){
          setHeard:(t:string|null)=>{heard=t;},
          setSolPrice:(p:number|null)=>{solPrice=p;},
          setInterpret:(r:any)=>{interpretResult=r;},
+         setInterpretSell:(r:string|null)=>{interpretSellResult=r;},
          actionStore,last:()=>sent[sent.length-1],
          lastPhoto:()=>photos[photos.length-1]};
 }
@@ -708,7 +711,7 @@ test('a deliberate refusal is never handed to the interpreter',async()=>{
  h.setInterpret({kind:'buyTrending',usd:5}); // the model must not override it
  await route(voiceNote2(8003),h.deps);
  assert.equal(h.calls.interpretBuy,undefined,'the model was allowed to overrule a safety refusal');
- assert.match(h.last().text,/do not sell out loud/i);
+ assert.match(h.last().text,/say which one to sell/i);
 });
 
 test('the interpreter returning nothing falls back to the normal refusal',async()=>{
@@ -770,4 +773,62 @@ test('a trade over the hard cap is not offered a raise, because none would help'
  await route(callback(confirm.callback_data,9005),h.deps);
  assert.match(h.last().text,/hard cap/i);
  assert.equal(h.last().keyboard,undefined,'a raise cannot lift the hard cap, so none is offered');
+});
+
+// Selling by voice names a token, not a uuid, and resolves against what the
+// user actually holds. A misheard name matches nothing and asks; it can never
+// close the wrong position, and every match still needs a tap.
+const HELD=[
+ {id:'11111111-1111-1111-1111-111111111111',userId:'u-1',mint:'MintSATO',symbol:'SATOSHINU',status:'OPEN',entrySignature:'s',entryLamports:'5000000',tokensReceived:'1000',exitSignature:null,exitLamports:null,reason:'',paper:false,openedAt:'',closedAt:null},
+ {id:'22222222-2222-2222-2222-222222222222',userId:'u-1',mint:'MintCAT',symbol:'STONKCAT',status:'OPEN',entrySignature:'s',entryLamports:'4000000',tokensReceived:'2000',exitSignature:null,exitLamports:null,reason:'',paper:false,openedAt:'',closedAt:null},
+];
+const sellVoice=(update_id=9500)=>({update_id,message:{message_id:9,chat:{id:99},from:{id:99,username:'jeremy'},voice:{file_id:'v',duration:3}}});
+
+test('"sell inu" resolves to SATOSHINU by partial match and asks to confirm',async()=>{
+ const h=harness({positions:async()=>HELD as any});
+ h.setHeard('sell inu');
+ await route(sellVoice(9501),h.deps);
+ assert.match(h.last().text,/sell SATOSHINU/i);
+ assert.ok(h.last().keyboard?.flat().some(b=>/confirm sell/i.test(b.text)));
+ assert.equal(h.calls.interpretSell,undefined,'the model was called when text alone was enough');
+});
+
+test('confirming a spoken sell closes exactly that position',async()=>{
+ const seen:string[]=[];
+ const h=harness({positions:async()=>HELD as any,
+  sell:async(_u,pid)=>{seen.push(pid);return {position:{...HELD[0],status:'CLOSED'} as any,result:{ok:true,signature:'sell-sig',outAmount:'9'}};}});
+ h.setHeard('sell inu');
+ await route(sellVoice(9502),h.deps);
+ const confirm=h.last().keyboard!.flat().find(b=>/confirm sell/i.test(b.text))!;
+ await route(callback(confirm.callback_data,9503),h.deps);
+ assert.deepEqual(seen,['11111111-1111-1111-1111-111111111111']);
+ assert.match(h.last().text,/sell-sig/);
+});
+
+test('a hard name the text matcher misses is resolved by the model',async()=>{
+ const h=harness({positions:async()=>HELD as any});
+ h.setHeard('sell my meow token');   // "meow" is nowhere in STONKCAT as text
+ h.setInterpretSell('STONKCAT');
+ await route(sellVoice(9504),h.deps);
+ assert.equal(h.calls.interpretSell?.length,1,'the model was not consulted');
+ assert.match(h.last().text,/sell STONKCAT/i);
+});
+
+test('a name that matches nothing lists holdings and never sells',async()=>{
+ let sold=false;
+ const h=harness({positions:async()=>HELD as any,sell:async()=>{sold=true;return {position:HELD[0] as any,result:{ok:true,signature:'x',outAmount:'1'}};}});
+ h.setHeard('sell dogecoin');
+ h.setInterpretSell(null);
+ await route(sellVoice(9505),h.deps);
+ assert.equal(sold,false);
+ assert.equal(h.last().keyboard,undefined,'no confirmation for an unmatched name');
+ assert.match(h.last().text,/could not tell which/i);
+ assert.match(h.last().text,/SATOSHINU/,'the holdings are not listed');
+});
+
+test('selling with no open positions says so',async()=>{
+ const h=harness({positions:async()=>[]});
+ h.setHeard('sell inu');
+ await route(sellVoice(9506),h.deps);
+ assert.match(h.last().text,/no open positions/i);
 });

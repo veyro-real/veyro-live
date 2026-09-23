@@ -62,6 +62,9 @@ export type Deps={
   {kind:'buyTrending';usd:number}|{kind:'buyTrending';sol:number}
   |{kind:'buyBySymbol';symbol:string;usd:number}|{kind:'buyBySymbol';symbol:string;sol:number}
   |null>;
+ /** Which held symbol a spoken name means, chosen only among `held`, or null
+  *  when no single one is clear. Never names a token the user does not hold. */
+ interpretSell(spokenName:string,held:string[]):Promise<string|null>;
  voice:{
   enabled(userId:string):Promise<boolean>;
   setEnabled(userId:string,on:boolean):Promise<void>;

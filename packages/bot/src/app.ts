@@ -13,7 +13,7 @@ import type {
 } from './types';
 import {
  findCandidate, findPosition, findUser, listPositions, openPosition,
- paperBalance, passedCandidates, readLimits, readStrategy, setMode,
+ paperBalance, passedCandidates, readLimits, readStrategy, setMode, spentToday,
  setPaperBalance, deactivateLimits, updatePosition, upsertUser, writeLimits,
  writeStrategy,
 } from './db';
@@ -318,15 +318,22 @@ export async function raiseLimitAndBuy(
   return buy(userId,mint,sol,key); // buy() returns the ABOVE_HARD_CAP refusal.
  }
  const cap=hardCapSol();
- const current=await readLimits(userId);
- const day=current?Number(current.dailyCapLamports)/1e9:0;
- await setLimits(userId,{
-  maxTradeSol:cap,
-  // The daily cap moves up only if it was below the new per-trade size; a
-  // per-trade larger than the day's total is a limit that contradicts itself.
-  dailyCapSol:Math.max(day,cap),
-  hours:24,
- });
+ // The daily cap has no operator ceiling to raise to — only the per-trade
+ // one does. The real bound on a day is the wallet: you cannot spend more
+ // than you hold, and each trade is still capped individually. So the daily
+ // cap rises to the spendable balance, which admits continued trading up to
+ // the money that is actually there and no further.
+ const kp=await ensureKeypair(userId);
+ const [spendable,spent]=await Promise.all([
+  spendableLamports(kp.publicKey.toBase58()).catch(()=>0n),
+  spentToday(userId).catch(()=>0n),
+ ]);
+ // The daily gate is spent-so-far + this trade <= cap. After a day of trades
+ // spent-so-far is already near the old cap, so the cap has to clear both it
+ // and what is still spendable — their sum is the wallet's whole capacity for
+ // the day, and nothing beyond the money that is actually there.
+ const daySol=Math.max(Number(spent+spendable)/1e9,cap);
+ await setLimits(userId,{maxTradeSol:cap,dailyCapSol:daySol,hours:24});
  return buy(userId,mint,sol,key);
 }
 

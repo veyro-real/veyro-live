@@ -58,8 +58,11 @@ test('speech that is not a command is null, not a wrong guess',()=>{
  }
 });
 
-test('selling by voice is refused because a position id cannot be spoken',()=>{
+test('a nameless sell is still refused, but a named one is understood',()=>{
  assert.equal(intentFromSpeech('sell my position'),null);
+ assert.equal(intentFromSpeech('sell everything'),null);
+ assert.deepEqual(intentFromSpeech('sell inu'),{kind:'sellBySpokenName',name:'inu'});
+ assert.deepEqual(intentFromSpeech('sell my satoshi inu'),{kind:'sellBySpokenName',name:'satoshi inu'});
 });
 
 test('an explicit slash command spoken aloud still works',()=>{

@@ -19,6 +19,8 @@ export const CONFIRM='b:',CANCEL='x:',ACTION='a:',ACTION_NO='n:';
 export const FUNDED='f:';
 /** "Raise limit & buy" on a trade within the hard cap but over the user's own. */
 export const RAISE='r:';
+/** "Confirm sell" carries the position id; a uuid + prefix fits Telegram's 64. */
+export const SELL='s:';
 
 export type Ctx={
  userId:string;
